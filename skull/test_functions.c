@@ -7589,6 +7589,21 @@ static void initialize_set_11_memory_for_testing(void) {
         MEM_WRITE32(MEM_ENVIRONMENT_VAR, 0); /* Default: no environment variable processing */
     }
     
+    /* Initialize MEM_POINTER_STORAGE_154 - used by process_environment_variables_init() if env_var != 0 */
+    if (MEM_POINTER_STORAGE_154 + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_POINTER_STORAGE_154, 0);
+    }
+    
+    /* Initialize MEM_POINTER_STORAGE_2 - used by process_environment_variables_init() */
+    if (MEM_POINTER_STORAGE_2 + sizeof(char*) <= g_gameState->memory_pool_size) {
+        *(char **)(g_gameState->memory_pool + MEM_POINTER_STORAGE_2) = NULL;
+    }
+    
+    /* Initialize MEM_POOL_BASE_OFFSET area - used by process_environment_variables_init() */
+    if (MEM_POOL_BASE_OFFSET + 256 <= g_gameState->memory_pool_size) {
+        memset(g_gameState->memory_pool + MEM_POOL_BASE_OFFSET, 0, 256);
+    }
+    
     /* Initialize keyboard buffer */
     if (MEM_KEYBOARD_BUFFER + 4 <= g_gameState->memory_pool_size) {
         MEM_WRITE32(MEM_KEYBOARD_BUFFER, RETURN_VALUE_ERROR); /* Empty buffer */
