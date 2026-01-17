@@ -1075,9 +1075,15 @@ int process_commands(int command_buffer,undefined2 context)
   undefined2 unaff_DS;
   int token_index;
   
+  fprintf(stderr, "process_commands: ENTRY - command_buffer=0x%x\n", command_buffer);
+  fflush(stderr);
+  
   #ifdef _WIN32
   __try {
   #endif
+  
+  fprintf(stderr, "process_commands: Inside try block\n");
+  fflush(stderr);
   
   /* FIXED: Make setup_function_context_wrapper() non-fatal - continue even if it fails */
   /* Similar to lookup_command() and execute_command() - setup failures shouldn't prevent command processing */
@@ -1085,34 +1091,54 @@ int process_commands(int command_buffer,undefined2 context)
   __try {
     setup_function_context_wrapper();
   } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "process_commands: setup_function_context_wrapper (non-fatal)", __FILE__, __LINE__);
+    fprintf(stderr, "process_commands: Exception 0x%x in setup_function_context_wrapper (non-fatal, continuing)\n", GetExceptionCode());
+    fflush(stderr);
     /* Continue execution - setup might fail but command processing can still work */
   }
   #else
   setup_function_context_wrapper();
   #endif
   
+  fprintf(stderr, "process_commands: After setup_function_context_wrapper\n");
+  fflush(stderr);
+  
   /* Validate command_buffer */
   if (command_buffer < 0 || command_buffer >= (int)g_gameState->memory_pool_size) {
-    log_warning("process_commands: command_buffer (%d) out of bounds", command_buffer);
+    fprintf(stderr, "process_commands: command_buffer (0x%x) out of bounds (pool_size=0x%x)\n", 
+            command_buffer, (unsigned int)g_gameState->memory_pool_size);
+    fflush(stderr);
     return -1;
   }
+  
+  fprintf(stderr, "process_commands: command_buffer validated, entering main loop\n");
+  fflush(stderr);
   
   do {
     token_index = 0;
     do {
       command_count = token_index;
       if (token_index * SIZE_COMMAND_ENTRY + command_buffer + sizeof(int) <= (int)g_gameState->memory_pool_size) {
-        if (*(int *)(token_index * SIZE_COMMAND_ENTRY + command_buffer) == MEM_READ32(MEM_COMMAND_TERMINATOR)) {
+        fprintf(stderr, "process_commands: Reading command at offset 0x%x\n", token_index * SIZE_COMMAND_ENTRY + command_buffer);
+        fflush(stderr);
+        if (*(int *)(g_gameState->memory_pool + token_index * SIZE_COMMAND_ENTRY + command_buffer) == MEM_READ32(MEM_COMMAND_TERMINATOR)) {
+          fprintf(stderr, "process_commands: Found command terminator\n");
+          fflush(stderr);
           token_index = token_index + 1;
           command_count = token_index;
         }
+        fprintf(stderr, "process_commands: Entering while loop, token_index=%d\n", token_index);
+        fflush(stderr);
         while (token_index * SIZE_COMMAND_ENTRY + command_buffer + sizeof(int) <= (int)g_gameState->memory_pool_size &&
-               (command_id = *(int *)(token_index * SIZE_COMMAND_ENTRY + command_buffer), command_id != 0 && (command_id != MEM_READ32(MEM_COMMAND_TERMINATOR)))) {
+               (command_id = *(int *)(g_gameState->memory_pool + token_index * SIZE_COMMAND_ENTRY + command_buffer), command_id != 0 && (command_id != MEM_READ32(MEM_COMMAND_TERMINATOR)))) {
+          fprintf(stderr, "process_commands: While loop, command_id=%d, token_index=%d\n", command_id, token_index);
+          fflush(stderr);
           token_index = token_index + 1;
         }
+        fprintf(stderr, "process_commands: Exited while loop, token_index=%d, command_id=%d\n", token_index, command_id);
+        fflush(stderr);
       } else {
-        log_warning("process_commands: Buffer access out of bounds at token_index %d", token_index);
+        fprintf(stderr, "process_commands: Buffer access out of bounds at token_index %d\n", token_index);
+        fflush(stderr);
         break;
       }
       command_id = token_index - command_count;
@@ -1123,9 +1149,14 @@ int process_commands(int command_buffer,undefined2 context)
         if (command_count * SIZE_COMMAND_ENTRY + command_buffer < (int)g_gameState->memory_pool_size) {
           #ifdef _WIN32
           __try {
+            fprintf(stderr, "process_commands: Calling execute_command_wrapper with command_id=%d\n", command_id);
+            fflush(stderr);
             command_count = execute_command_wrapper((uint*)(g_gameState->memory_pool + command_count * SIZE_COMMAND_ENTRY + command_buffer), command_id, context, command_id);
+            fprintf(stderr, "process_commands: execute_command_wrapper returned %d\n", command_count);
+            fflush(stderr);
           } __except(EXCEPTION_EXECUTE_HANDLER) {
-            log_exception_details(GetExceptionCode(), "process_commands: execute_command_wrapper", __FILE__, __LINE__);
+            fprintf(stderr, "process_commands: Exception 0x%x in execute_command_wrapper\n", GetExceptionCode());
+            fflush(stderr);
             command_count = -1; /* Return error on exception */
             break;
           }
@@ -1133,7 +1164,8 @@ int process_commands(int command_buffer,undefined2 context)
           command_count = execute_command_wrapper((uint*)(command_count * SIZE_COMMAND_ENTRY + command_buffer), command_id, context, command_id);
           #endif
         } else {
-          log_warning("process_commands: Command buffer access out of bounds");
+          fprintf(stderr, "process_commands: Command buffer access out of bounds\n");
+          fflush(stderr);
           command_count = -1;
           break;
         }
