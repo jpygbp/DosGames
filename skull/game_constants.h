@@ -36,6 +36,8 @@
 #define MEM_STRING_TABLE_OFFSET    0x10e8    /* String table offset */
 #define MEM_LOCATION_DATA          0x6602    /* Current location data */
 #define MEM_GAME_FLAGS             0x6605    /* Game state flags */
+#define MEM_GAME_EXIT_FLAG         0x6606    /* Game exit flag */
+#define MEM_COMMAND_BUFFER         0x6500    /* Command input buffer */
 #define MEM_MOVE_COUNTER           0x6603    /* Movement counter */
 #define MEM_MOVE_DIRECTION         0x6608    /* Movement direction */
 #define MEM_LOCATION_ID            0x6609    /* Current location ID */
@@ -173,6 +175,7 @@
 #define CMD_FLAG_HAS_PARAMS        0x4000    /* Command has parameters */
 #define CMD_FLAG_SPECIAL_ACTION    0x4018    /* Special action command */
 #define CMD_FLAG_END_COMMAND       0x401d    /* End command marker */
+#define CMD_QUIT                   0x0011    /* Quit command ID */
 
 /* Action flags */
 #define ACTION_FLAG_REQUIRE_MATCH  0x40      /* Action requires object match */

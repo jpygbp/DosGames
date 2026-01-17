@@ -9594,7 +9594,54 @@ void entry(void)
     /* Skip logging to avoid nested exceptions */
   }
   
-  /* On Windows, skip the rest of the DOS-specific interactive loop for testing */
+  /* Windows game loop - process commands until game exits */
+  log_info("entry: Starting game loop");
+  fprintf(stderr, "entry: Starting game loop\n");
+  fflush(stderr);
+  
+  bool game_running = true;
+  int loop_count = 0;
+  const int MAX_LOOPS = 10000; /* Safety limit to prevent infinite loops */
+  
+  while (game_running && loop_count < MAX_LOOPS) {
+    loop_count++;
+    
+    __try {
+      /* Display prompt */
+      fprintf(stderr, "\n> ");
+      fflush(stderr);
+      
+      /* Process commands - this function handles input and command execution */
+      int result = process_commands(MEM_COMMAND_BUFFER, 0);
+      
+      /* Check if game should exit */
+      if (result < 0 || MEM_READ32(MEM_GAME_EXIT_FLAG) != 0) {
+        log_info("entry: Game exit requested (result=%d)", result);
+        game_running = false;
+      }
+      
+      /* Check for quit command in command buffer */
+      if (MEM_READ32(MEM_COMMAND_BUFFER) == CMD_QUIT) {
+        log_info("entry: QUIT command received");
+        game_running = false;
+      }
+      
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+      log_exception_details(GetExceptionCode(), "entry: game loop", __FILE__, __LINE__);
+      fprintf(stderr, "ERROR: Exception in game loop, continuing...\n");
+      fflush(stderr);
+      /* Continue game loop even after exception */
+    }
+  }
+  
+  if (loop_count >= MAX_LOOPS) {
+    log_warning("entry: Game loop reached maximum iterations (%d)", MAX_LOOPS);
+    fprintf(stderr, "WARNING: Game loop limit reached\n");
+  }
+  
+  log_info("entry: Game loop exited after %d iterations", loop_count);
+  fprintf(stderr, "entry: Game loop exited\n");
+  fflush(stderr);
   return;
   #else
   /* Original DOS implementation */
