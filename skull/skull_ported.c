@@ -687,7 +687,7 @@ void game_init(void)
   }
   
   /* Minimal initialization for Windows testing */
-  log_info("game_init: Windows simplified version - skipping complex DOS initialization");
+  log_info("game_init: Windows simplified version - loading game data for automated walkthrough");
   
   /* Set default video mode (text mode) */
   if (MEM_VIDEO_MODE + 4 <= g_gameState->memory_pool_size) {
@@ -698,6 +698,21 @@ void game_init(void)
   if (MEM_GAME_FLAGS + 4 <= g_gameState->memory_pool_size) {
     MEM_WRITE32(MEM_GAME_FLAGS, 0); /* Clear game flags */
   }
+  
+  /* Load game data files for command table and game content */
+  log_info("game_init: Loading game data files...");
+  #ifdef _WIN32
+  __try {
+    load_game_data_files();
+    log_info("game_init: Game data files loaded successfully");
+  } __except(EXCEPTION_EXECUTE_HANDLER) {
+    log_exception_details(GetExceptionCode(), "game_init: load_game_data_files", __FILE__, __LINE__);
+    fprintf(stderr, "ERROR: game_init: Failed to load game data files\n");
+    fflush(stderr);
+  }
+  #else
+  load_game_data_files();
+  #endif
   
   log_info("game_init: Windows initialization complete");
   return;
@@ -1426,44 +1441,23 @@ int parse_command_input(int token_buffer,int input_buffer)
           }
           
           if (token_len > 0) {
-            /* Verify MEM_STRING_COUNT and MEM_STRING_TABLE are set before calling lookup_command */
-          /* These might have been overwritten by setup_function_context() or other initialization */
+            /* NOTE: String table re-initialization disabled - we now load real game data */
+          /* The hardcoded test commands are no longer needed since game_init() loads data files */
+          /* Verify MEM_STRING_COUNT and MEM_STRING_TABLE are set before calling lookup_command */
           if (MEM_STRING_COUNT + 4 <= g_gameState->memory_pool_size) {
             uint32_t verify_count = MEM_READ32(MEM_STRING_COUNT);
-            if (verify_count == 0 || verify_count > 1000) {
-              /* Re-initialize if it was overwritten */
-              MEM_WRITE32(MEM_STRING_COUNT, 5);
-              fprintf(stderr, "parse_command_input: Re-initialized MEM_STRING_COUNT to 5\n");
+            fprintf(stderr, "parse_command_input: MEM_STRING_COUNT = %d\n", verify_count);
+            fflush(stderr);
+            /* Only re-initialize if count is 0 (not loaded) */
+            if (verify_count == 0) {
+              fprintf(stderr, "parse_command_input: WARNING - MEM_STRING_COUNT is 0, game data not loaded!\n");
               fflush(stderr);
             }
           }
           if (MEM_STRING_TABLE + 4 <= g_gameState->memory_pool_size) {
             uint32_t verify_table = MEM_READ32(MEM_STRING_TABLE);
-            if (verify_table == 0 || verify_table != 0x8000) {
-              /* Re-initialize string table if it was overwritten */
-              uint32_t string_table_offset = 0x8000;
-              if (string_table_offset + 256 <= g_gameState->memory_pool_size) {
-                MEM_WRITE32(MEM_STRING_TABLE, string_table_offset);
-                char* string_table = (char*)(g_gameState->memory_pool + string_table_offset);
-                memset(string_table, 0, 256);
-                
-                /* Re-create test command strings */
-                uint32_t offset = 0;
-                strcpy((char*)(g_gameState->memory_pool + string_table_offset + offset), "look"); offset += 5;
-                MEM_WRITE16(string_table_offset + offset, 1); offset += 2;
-                strcpy((char*)(g_gameState->memory_pool + string_table_offset + offset), "take"); offset += 5;
-                MEM_WRITE16(string_table_offset + offset, 2); offset += 2;
-                strcpy((char*)(g_gameState->memory_pool + string_table_offset + offset), "drop"); offset += 5;
-                MEM_WRITE16(string_table_offset + offset, 3); offset += 2;
-                strcpy((char*)(g_gameState->memory_pool + string_table_offset + offset), "go"); offset += 3;
-                MEM_WRITE16(string_table_offset + offset, 4); offset += 2;
-                strcpy((char*)(g_gameState->memory_pool + string_table_offset + offset), "inventory"); offset += 10;
-                MEM_WRITE16(string_table_offset + offset, 5); offset += 2;
-                
-                fprintf(stderr, "parse_command_input: Re-initialized MEM_STRING_TABLE\n");
-                fflush(stderr);
-              }
-            }
+            fprintf(stderr, "parse_command_input: MEM_STRING_TABLE = 0x%x\n", verify_table);
+            fflush(stderr);
           }
           
             /* Convert pointer to offset for lookup_command */
@@ -2133,8 +2127,6 @@ int lookup_command(undefined2 command_string_ptr)
   /* Read MEM_STRING_COUNT with exception handling - do this inside the outer try block */
   int string_count = 0;
   
-  log_info("lookup_command: About to read MEM_STRING_COUNT (offset=0x%x, pool_size=0x%x)", 
-           MEM_STRING_COUNT, (unsigned int)g_gameState->memory_pool_size);
   fprintf(stderr, "lookup_command: About to read MEM_STRING_COUNT (offset=0x%x, pool_size=0x%x)\n",
           MEM_STRING_COUNT, (unsigned int)g_gameState->memory_pool_size);
   fflush(stderr);
@@ -2143,18 +2135,14 @@ int lookup_command(undefined2 command_string_ptr)
   __try {
     if (MEM_STRING_COUNT + 4 <= g_gameState->memory_pool_size) {
       string_count = MEM_READ32(MEM_STRING_COUNT);
-      log_info("lookup_command: Successfully read MEM_STRING_COUNT = %d", string_count);
       fprintf(stderr, "lookup_command: Successfully read MEM_STRING_COUNT = %d\n", string_count);
       fflush(stderr);
     } else {
-      log_warning("lookup_command: MEM_STRING_COUNT (0x%x) out of bounds (pool_size=0x%x)", 
-                  MEM_STRING_COUNT, (unsigned int)g_gameState->memory_pool_size);
       fprintf(stderr, "lookup_command: MEM_STRING_COUNT out of bounds!\n");
       fflush(stderr);
       string_count = 0;
     }
   } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "lookup_command: MEM_READ32(MEM_STRING_COUNT)", __FILE__, __LINE__);
     fprintf(stderr, "lookup_command: Exception reading MEM_STRING_COUNT (0x%x)\n", GetExceptionCode());
     fflush(stderr);
     string_count = 0; /* Default to 0 if read fails */
@@ -2167,7 +2155,6 @@ int lookup_command(undefined2 command_string_ptr)
   }
   #endif
   
-  log_info("lookup_command: string_count = %d, command_string_ptr = 0x%x", string_count, (uintptr_t)command_string_ptr);
   fprintf(stderr, "lookup_command: Final string_count = %d, command_string_ptr = 0x%x\n", 
           string_count, (uintptr_t)command_string_ptr);
   fflush(stderr);
