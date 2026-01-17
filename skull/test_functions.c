@@ -13737,6 +13737,293 @@ void test_display_functions_converted(void) {
     }
 }
 
+/* Test enhanced object management functions */
+void test_enhanced_object_management(void) {
+    printf("\n[OBJMGMT] ========================================\n");
+    printf("[OBJMGMT] Testing Enhanced Object Management Functions\n");
+    printf("[OBJMGMT] ========================================\n\n");
+    
+    int total_tests = 0;
+    int tests_passed = 0;
+    int tests_failed = 0;
+    
+    #ifdef _WIN32
+    /* Initialize game state with full context */
+    initialize_full_game_context_for_testing();
+    
+    if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
+        printf("[OBJMGMT] ERROR: Failed to initialize game state\n");
+        return;
+    }
+    
+    /* Setup test objects in location and inventory */
+    uint32_t base_ptr = MEM_READ32(MEM_BASE_POINTER);
+    uint32_t data_base = MEM_READ32(MEM_DATA_BASE);
+    uint32_t current_location = 0; /* Test at location 0 */
+    
+    /* Set current location */
+    if (MEM_LOCATION_DATA + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_LOCATION_DATA, current_location);
+    }
+    
+    /* Initialize location 0 list to empty */
+    uint32_t loc_offset = current_location * SIZE_LOCATION_ENTRY + data_base;
+    if (loc_offset < g_gameState->memory_pool_size) {
+        g_gameState->memory_pool[loc_offset] = 0; /* Empty list */
+    }
+    
+    /* Create 5 test objects */
+    for (int i = 1; i <= 5; i++) {
+        uint32_t obj_offset = base_ptr + (i * SIZE_OBJECT_ENTRY);
+        if (obj_offset + SIZE_OBJECT_ENTRY <= g_gameState->memory_pool_size) {
+            /* Initialize object entry */
+            memset(&g_gameState->memory_pool[obj_offset], 0, SIZE_OBJECT_ENTRY);
+            
+            /* Set next object link (0 = end of list) */
+            g_gameState->memory_pool[obj_offset] = 0;
+            
+            /* Set object state (offset +8) - must be < MAX_OBJECT_ID to be takeable */
+            g_gameState->memory_pool[obj_offset + 8] = 10;
+            
+            /* Set object weight (offset +9) */
+            g_gameState->memory_pool[obj_offset + 9] = 1;
+            
+            /* Set object flags (offset +6) - clear bit 2 so add_object_to_list works */
+            g_gameState->memory_pool[obj_offset + 6] = 0;
+        }
+    }
+    
+    /* Now add objects to location 0 list using a simple linked list approach */
+    /* We'll manually build the list instead of using add_object_to_list to avoid issues */
+    if (loc_offset < g_gameState->memory_pool_size) {
+        /* Set first object in location list */
+        g_gameState->memory_pool[loc_offset] = 1;
+        
+        /* Link objects 1->2->3->4->5->0 */
+        for (int i = 1; i < 5; i++) {
+            uint32_t obj_offset = base_ptr + (i * SIZE_OBJECT_ENTRY);
+            if (obj_offset < g_gameState->memory_pool_size) {
+                g_gameState->memory_pool[obj_offset] = i + 1; /* Link to next */
+            }
+        }
+        /* Last object points to 0 (end of list) */
+        uint32_t last_obj_offset = base_ptr + (5 * SIZE_OBJECT_ENTRY);
+        if (last_obj_offset < g_gameState->memory_pool_size) {
+            g_gameState->memory_pool[last_obj_offset] = 0;
+        }
+    }
+    
+    /* Test 1: take_object() - use location_id=1 to suppress display messages */
+    printf("[OBJMGMT] Test 1: take_object(1, 1) - suppress messages\n");
+    total_tests++;
+    __try {
+        int result = take_object(1, 1);
+        if (result != 0) {
+            printf("[OBJMGMT]   ✓ PASS - Object taken successfully\n");
+            tests_passed++;
+        } else {
+            printf("[OBJMGMT]   ✗ FAIL - Failed to take object\n");
+            tests_failed++;
+        }
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        printf("[OBJMGMT]   ✗ FAIL - Exception: 0x%08X\n", GetExceptionCode());
+        tests_failed++;
+    }
+    
+    /* Test 2: is_object_in_inventory() after take */
+    printf("[OBJMGMT] Test 2: is_object_in_inventory(1)\n");
+    total_tests++;
+    __try {
+        int result = is_object_in_inventory(1);
+        if (result != 0) {
+            printf("[OBJMGMT]   ✓ PASS - Object is in inventory\n");
+            tests_passed++;
+        } else {
+            printf("[OBJMGMT]   ✗ FAIL - Object not in inventory after take\n");
+            tests_failed++;
+        }
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        printf("[OBJMGMT]   ✗ FAIL - Exception: 0x%08X\n", GetExceptionCode());
+        tests_failed++;
+    }
+    
+    /* Test 3: drop_object() - use location_id=1 to suppress display messages */
+    printf("[OBJMGMT] Test 3: drop_object(1, 1) - suppress messages\n");
+    total_tests++;
+    __try {
+        int result = drop_object(1, 1);
+        if (result != 0) {
+            printf("[OBJMGMT]   ✓ PASS - Object dropped successfully\n");
+            tests_passed++;
+        } else {
+            printf("[OBJMGMT]   ✗ FAIL - Failed to drop object\n");
+            tests_failed++;
+        }
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        printf("[OBJMGMT]   ✗ FAIL - Exception: 0x%08X\n", GetExceptionCode());
+        tests_failed++;
+    }
+    
+    /* Test 4: is_object_in_inventory() after drop */
+    printf("[OBJMGMT] Test 4: is_object_in_inventory(1) after drop\n");
+    total_tests++;
+    __try {
+        int result = is_object_in_inventory(1);
+        if (result == 0) {
+            printf("[OBJMGMT]   ✓ PASS - Object not in inventory after drop\n");
+            tests_passed++;
+        } else {
+            printf("[OBJMGMT]   ✗ FAIL - Object still in inventory after drop\n");
+            tests_failed++;
+        }
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        printf("[OBJMGMT]   ✗ FAIL - Exception: 0x%08X\n", GetExceptionCode());
+        tests_failed++;
+    }
+    
+    /* Test 5: take_all_objects() */
+    printf("[OBJMGMT] Test 5: take_all_objects(0, 0)\n");
+    total_tests++;
+    __try {
+        int result = take_all_objects(0, 0);
+        printf("[OBJMGMT]   ✓ PASS - take_all_objects completed without crash\n");
+        tests_passed++;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        printf("[OBJMGMT]   ✗ FAIL - Exception: 0x%08X\n", GetExceptionCode());
+        tests_failed++;
+    }
+    
+    /* Test 6: Check if multiple objects are in inventory */
+    printf("[OBJMGMT] Test 6: Check multiple objects in inventory\n");
+    total_tests++;
+    __try {
+        int count = 0;
+        for (int i = 1; i <= 5; i++) {
+            if (is_object_in_inventory(i)) {
+                count++;
+            }
+        }
+        if (count >= 2) {
+            printf("[OBJMGMT]   ✓ PASS - %d objects in inventory\n", count);
+            tests_passed++;
+        } else {
+            printf("[OBJMGMT]   ✗ FAIL - Only %d objects in inventory\n", count);
+            tests_failed++;
+        }
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        printf("[OBJMGMT]   ✗ FAIL - Exception: 0x%08X\n", GetExceptionCode());
+        tests_failed++;
+    }
+    
+    /* Test 7: drop_all_objects() */
+    printf("[OBJMGMT] Test 7: drop_all_objects(0, 0)\n");
+    total_tests++;
+    __try {
+        int result = drop_all_objects(0, 0);
+        printf("[OBJMGMT]   ✓ PASS - drop_all_objects completed without crash\n");
+        tests_passed++;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        printf("[OBJMGMT]   ✗ FAIL - Exception: 0x%08X\n", GetExceptionCode());
+        tests_failed++;
+    }
+    
+    /* Test 8: Check if inventory is empty after drop_all */
+    printf("[OBJMGMT] Test 8: Check inventory empty after drop_all\n");
+    total_tests++;
+    __try {
+        int count = 0;
+        for (int i = 1; i <= 5; i++) {
+            if (is_object_in_inventory(i)) {
+                count++;
+            }
+        }
+        if (count == 0) {
+            printf("[OBJMGMT]   ✓ PASS - Inventory is empty\n");
+            tests_passed++;
+        } else {
+            printf("[OBJMGMT]   ✗ FAIL - %d objects still in inventory\n", count);
+            tests_failed++;
+        }
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        printf("[OBJMGMT]   ✗ FAIL - Exception: 0x%08X\n", GetExceptionCode());
+        tests_failed++;
+    }
+    
+    /* Test 9: move_object_between_locations() */
+    printf("[OBJMGMT] Test 9: move_object_between_locations(1, 0, 1)\n");
+    total_tests++;
+    __try {
+        /* First take object 1 */
+        take_object(1, 1);
+        
+        /* Setup from_location (0) as a valid container */
+        uint32_t from_loc_ptr = 0 * SIZE_OBJECT_ENTRY + base_ptr;
+        if (from_loc_ptr + SIZE_OBJECT_ENTRY <= g_gameState->memory_pool_size) {
+            /* Set LOCKED flag */
+            MEM_WRITE32(from_loc_ptr + 6, OBJ_FLAG_LOCKED);
+            /* Set container flag */
+            MEM_WRITE32(from_loc_ptr + 10, BIT_MASK_16384);
+            /* Set state */
+            g_gameState->memory_pool[from_loc_ptr + 8] = 50;
+        }
+        
+        move_object_between_locations(1, 0, 1);
+        printf("[OBJMGMT]   ✓ PASS - move_object_between_locations completed without crash\n");
+        tests_passed++;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        printf("[OBJMGMT]   ✗ FAIL - Exception: 0x%08X\n", GetExceptionCode());
+        tests_failed++;
+    }
+    
+    /* Test 10: Weight management - use location_id=1 to suppress messages */
+    printf("[OBJMGMT] Test 10: Weight management\n");
+    total_tests++;
+    __try {
+        /* Reset weight */
+        if (MEM_LOCATION_TEMP_2 < g_gameState->memory_pool_size) {
+            g_gameState->memory_pool[MEM_LOCATION_TEMP_2] = 0;
+        }
+        
+        /* Take object with weight - suppress messages */
+        take_object(2, 1);
+        
+        /* Check weight increased */
+        byte weight = g_gameState->memory_pool[MEM_LOCATION_TEMP_2];
+        if (weight > 0) {
+            printf("[OBJMGMT]   ✓ PASS - Weight increased to %u\n", weight);
+            tests_passed++;
+        } else {
+            printf("[OBJMGMT]   ✗ FAIL - Weight not updated\n");
+            tests_failed++;
+        }
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        printf("[OBJMGMT]   ✗ FAIL - Exception: 0x%08X\n", GetExceptionCode());
+        tests_failed++;
+    }
+    
+    #else
+    printf("[OBJMGMT] Skipping tests - Windows-only functionality\n\n");
+    #endif
+    
+    /* Print results */
+    printf("\n[OBJMGMT] ========================================\n");
+    printf("[OBJMGMT] Enhanced Object Management Test Results:\n");
+    printf("[OBJMGMT]   Total Tests: %d\n", total_tests);
+    printf("[OBJMGMT]   Passed: %d\n", tests_passed);
+    printf("[OBJMGMT]   Failed: %d\n", tests_failed);
+    if (total_tests > 0) {
+        printf("[OBJMGMT]   Pass Rate: %.1f%%\n", (float)tests_passed / total_tests * 100.0f);
+    }
+    printf("[OBJMGMT] ========================================\n\n");
+    
+    /* Add to test results */
+    if (tests_failed == 0 && total_tests > 0) {
+        add_test_result("enhanced_object_management", 1, "All enhanced object management tests passed");
+    } else {
+        add_test_result("enhanced_object_management", 0, "Some enhanced object management tests failed");
+    }
+}
+
 /* Main test function */
 int main(int argc, char* argv[]) {
     printf("Skull Game Function Test Suite\n");
@@ -13785,6 +14072,10 @@ int main(int argc, char* argv[]) {
         
         /* Run deep dive tests for converted display functions (Priority 1) */
         test_display_functions_converted();
+        printf("\n");
+        
+        /* Run deep dive tests for enhanced object management functions */
+        test_enhanced_object_management();
         printf("\n");
     } else {
         printf("WARNING: Cannot run further tests - game state not initialized\n");
