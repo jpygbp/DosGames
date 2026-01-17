@@ -9611,8 +9611,36 @@ void entry(void)
       fprintf(stderr, "\n> ");
       fflush(stderr);
       
-      /* Process commands - this function handles input and command execution */
-      int result = process_commands(MEM_COMMAND_BUFFER, 0);
+      /* FIXED: Must parse input BEFORE processing commands */
+      /* parse_command_input reads from stdin and fills the command buffer */
+      /* Then process_commands executes the commands from the buffer */
+      int parse_result = 0;
+      __try {
+        parse_result = parse_command_input(0, 0);  /* Use 0,0 like the wrapper does */
+      } __except(EXCEPTION_EXECUTE_HANDLER) {
+        log_info("entry: Exception in parse_command_input, treating as EOF");
+        fprintf(stderr, "ERROR: Exception in parse_command_input, exiting\n");
+        fflush(stderr);
+        parse_result = 0;  /* Treat exception as no input */
+      }
+      
+      /* Check if parsing failed (EOF, error, or no input) */
+      if (parse_result <= 0) {
+        log_info("entry: Input parsing failed, EOF, or no input (result=%d)", parse_result);
+        game_running = false;
+        break;
+      }
+      
+      /* Now process the commands that were parsed into the buffer */
+      int result = 0;
+      __try {
+        result = process_commands(MEM_COMMAND_BUFFER, 0);
+      } __except(EXCEPTION_EXECUTE_HANDLER) {
+        log_info("entry: Exception in process_commands, treating as error");
+        fprintf(stderr, "ERROR: Exception in process_commands, exiting\n");
+        fflush(stderr);
+        result = -1;  /* Treat exception as error */
+      }
       
       /* Check if game should exit */
       if (result < 0 || MEM_READ32(MEM_GAME_EXIT_FLAG) != 0) {
@@ -9627,10 +9655,9 @@ void entry(void)
       }
       
     } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "entry: game loop", __FILE__, __LINE__);
-      fprintf(stderr, "ERROR: Exception in game loop, continuing...\n");
-      fflush(stderr);
-      /* Continue game loop even after exception */
+      /* CRITICAL: Don't call any functions that might throw exceptions */
+      /* Just set the flag and exit - no logging, no fprintf */
+      game_running = false;
     }
   }
   
