@@ -427,6 +427,8 @@ int load_game_data_files(void)
   undefined2 file_handle;
   int item_count = 0;
   undefined2 local_1e;
+  uint32_t saved_command_count = 0; /* WORKAROUND: Save command count to restore after file loading */
+  uint32_t saved_string_table_base = 0; /* WORKAROUND: Save string table base to restore after file loading */
   
   if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
     log_error("load_game_data_files: Game state not initialized");
@@ -480,8 +482,14 @@ int load_game_data_files(void)
   }
   
   MEM_WRITE32(MEM_STRING_TABLE_BASE, string_table_base);
-  // log_info("load_game_data_files: MEM_STRING_TABLE_BASE = 0x%x (data_base=0x%x, offset=0x%x)", 
-  //          string_table_base, data_base, FILE_OFFSET_STRING_TABLE);
+  fprintf(stderr, "load_game_data_files: MEM_STRING_TABLE_BASE = 0x%x (data_base=0x%x, offset=0x%x)\n", 
+           string_table_base, data_base, FILE_OFFSET_STRING_TABLE);
+  fflush(stderr);
+  
+  /* WORKAROUND: Save string table base because it gets overwritten by subsequent file loading */
+  saved_string_table_base = string_table_base;
+  fprintf(stderr, "load_game_data_files: Saved string_table_base = 0x%x\n", saved_string_table_base);
+  fflush(stderr);
   
   /* Second file - read until sentinel */
   // log_info("load_game_data_files: Opening second file");
@@ -508,6 +516,25 @@ int load_game_data_files(void)
   item_count = read_file_until_sentinel(string_table_base, &item_count);
   #endif
   MEM_WRITE32(MEM_COMMAND_COUNT, item_count);
+  fprintf(stderr, "load_game_data_files: Loaded %d commands from second file (SKULL.X) at base 0x%x\n", 
+          item_count, string_table_base);
+  fflush(stderr);
+  
+  /* WORKAROUND: Save command count because it gets overwritten by subsequent file loading */
+  saved_command_count = item_count;
+  fprintf(stderr, "load_game_data_files: Saved command count = %d\n", saved_command_count);
+  fflush(stderr);
+  
+  /* Debug: Show first few entries in command table */
+  if (string_table_base + 32 < g_gameState->memory_pool_size) {
+    fprintf(stderr, "load_game_data_files: First 16 bytes at 0x%x: ", string_table_base);
+    for (int i = 0; i < 16 && string_table_base + i < g_gameState->memory_pool_size; i++) {
+      fprintf(stderr, "%02x ", g_gameState->memory_pool[string_table_base + i]);
+    }
+    fprintf(stderr, "\n");
+    fflush(stderr);
+  }
+  
   file_close(FILE_CLOSE_ALL);
   
   /* Third file - read until sentinel */
@@ -544,6 +571,16 @@ int load_game_data_files(void)
   item_count = read_file_until_sentinel(string_table_offset, &item_count);
   #endif
   MEM_WRITE32(MEM_OBJECT_COUNT, item_count);
+  fprintf(stderr, "load_game_data_files: Set MEM_OBJECT_COUNT to %d\n", item_count);
+  fflush(stderr);
+  
+  /* WORKAROUND: Restore command count and string table base immediately after third file (they get overwritten) */
+  MEM_WRITE32(MEM_COMMAND_COUNT, saved_command_count);
+  MEM_WRITE32(MEM_STRING_TABLE_BASE, saved_string_table_base);
+  fprintf(stderr, "load_game_data_files: Restored MEM_COMMAND_COUNT to %d and MEM_STRING_TABLE_BASE to 0x%x\n", 
+          saved_command_count, saved_string_table_base);
+  fflush(stderr);
+  
   file_close(FILE_CLOSE_ALL);
   
   /* Fourth file */
@@ -557,7 +594,19 @@ int load_game_data_files(void)
   }
   
   MEM_WRITE32(MEM_STRING_TABLE, string_table);
-  // log_info("load_game_data_files: MEM_STRING_TABLE = 0x%x", string_table);
+  fprintf(stderr, "load_game_data_files: MEM_STRING_TABLE = 0x%x\n", string_table);
+  fflush(stderr);
+  
+  /* Debug: Show first few bytes at MEM_STRING_TABLE */
+  if (string_table + 32 < g_gameState->memory_pool_size) {
+    fprintf(stderr, "load_game_data_files: First 16 bytes at MEM_STRING_TABLE (0x%x): ", string_table);
+    for (int i = 0; i < 16 && string_table + i < g_gameState->memory_pool_size; i++) {
+      fprintf(stderr, "%02x ", g_gameState->memory_pool[string_table + i]);
+    }
+    fprintf(stderr, "\n");
+    fflush(stderr);
+  }
+  
   file_handle = file_open_wrapper();
   if (file_handle < 0) {
     log_error("load_game_data_files: Failed to open fourth file");
@@ -607,6 +656,14 @@ int load_game_data_files(void)
   MEM_WRITE32(MEM_FILE_HANDLE_6, file_handle);
   
   // log_info("load_game_data_files: File loading complete");
+  
+  /* WORKAROUND: Restore command count and string table base after file loading (they get overwritten) */
+  MEM_WRITE32(MEM_COMMAND_COUNT, saved_command_count);
+  MEM_WRITE32(MEM_STRING_TABLE_BASE, saved_string_table_base);
+  fprintf(stderr, "load_game_data_files: Final restore - MEM_COMMAND_COUNT = %d, MEM_STRING_TABLE_BASE = 0x%x\n", 
+          saved_command_count, saved_string_table_base);
+  fflush(stderr);
+  
   #ifdef _WIN32
   } __except(EXCEPTION_EXECUTE_HANDLER) {
     /* Skip logging to avoid nested exceptions */
@@ -2127,29 +2184,31 @@ int lookup_command(undefined2 command_string_ptr)
   /* Read MEM_STRING_COUNT with exception handling - do this inside the outer try block */
   int string_count = 0;
   
-  fprintf(stderr, "lookup_command: About to read MEM_STRING_COUNT (offset=0x%x, pool_size=0x%x)\n",
-          MEM_STRING_COUNT, (unsigned int)g_gameState->memory_pool_size);
+  /* FIXED: Use MEM_COMMAND_COUNT instead of MEM_STRING_COUNT for command lookup */
+  /* MEM_STRING_COUNT is for general strings, MEM_COMMAND_COUNT is for commands */
+  fprintf(stderr, "lookup_command: About to read MEM_COMMAND_COUNT (offset=0x%x, pool_size=0x%x)\n",
+          MEM_COMMAND_COUNT, (unsigned int)g_gameState->memory_pool_size);
   fflush(stderr);
   
   #ifdef _WIN32
   __try {
-    if (MEM_STRING_COUNT + 4 <= g_gameState->memory_pool_size) {
-      string_count = MEM_READ32(MEM_STRING_COUNT);
-      fprintf(stderr, "lookup_command: Successfully read MEM_STRING_COUNT = %d\n", string_count);
+    if (MEM_COMMAND_COUNT + 4 <= g_gameState->memory_pool_size) {
+      string_count = MEM_READ32(MEM_COMMAND_COUNT);
+      fprintf(stderr, "lookup_command: Successfully read MEM_COMMAND_COUNT = %d\n", string_count);
       fflush(stderr);
     } else {
-      fprintf(stderr, "lookup_command: MEM_STRING_COUNT out of bounds!\n");
+      fprintf(stderr, "lookup_command: MEM_COMMAND_COUNT out of bounds!\n");
       fflush(stderr);
       string_count = 0;
     }
   } __except(EXCEPTION_EXECUTE_HANDLER) {
-    fprintf(stderr, "lookup_command: Exception reading MEM_STRING_COUNT (0x%x)\n", GetExceptionCode());
+    fprintf(stderr, "lookup_command: Exception reading MEM_COMMAND_COUNT (0x%x)\n", GetExceptionCode());
     fflush(stderr);
     string_count = 0; /* Default to 0 if read fails */
   }
   #else
-  if (MEM_STRING_COUNT + 4 <= g_gameState->memory_pool_size) {
-    string_count = MEM_READ32(MEM_STRING_COUNT);
+  if (MEM_COMMAND_COUNT + 4 <= g_gameState->memory_pool_size) {
+    string_count = MEM_READ32(MEM_COMMAND_COUNT);
   } else {
     string_count = 0;
   }
@@ -2166,17 +2225,19 @@ int lookup_command(undefined2 command_string_ptr)
       break;
     }
     
-    /* Read MEM_STRING_TABLE with exception handling - nested try for each iteration */
+    /* FIXED: Read MEM_STRING_TABLE_BASE instead of MEM_STRING_TABLE for command lookup */
+    /* MEM_STRING_TABLE_BASE contains the command table loaded from SKULL.X */
     uint32_t string_table_base = 0;
     #ifdef _WIN32
     __try {
-      string_table_base = MEM_READ32(MEM_STRING_TABLE);
+      string_table_base = MEM_READ32(MEM_STRING_TABLE_BASE);
     } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "lookup_command: MEM_READ32(MEM_STRING_TABLE)", __FILE__, __LINE__);
+      fprintf(stderr, "lookup_command: Exception reading MEM_STRING_TABLE_BASE (0x%x)\n", GetExceptionCode());
+      fflush(stderr);
       break; /* Break loop if table read fails */
     }
     #else
-    string_table_base = MEM_READ32(MEM_STRING_TABLE);
+    string_table_base = MEM_READ32(MEM_STRING_TABLE_BASE);
     #endif
     
     /* Validate string_table_base is reasonable */
