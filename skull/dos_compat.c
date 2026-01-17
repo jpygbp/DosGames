@@ -1318,9 +1318,8 @@ int file_open_wrapper(void) {
     
     if (g_file_open_index < (int)(sizeof(g_game_files) / sizeof(g_game_files[0]) - 1)) {
         filename = g_game_files[g_file_open_index];
-        // log_info("file_open_wrapper: Opening file #%d: %s", g_file_open_index, filename);
-        // fprintf(stderr, "file_open_wrapper: Opening file #%d: %s\n", g_file_open_index, filename);
-        // fflush(stderr);
+        fprintf(stderr, "file_open_wrapper: Opening file #%d: %s\n", g_file_open_index, filename);
+        fflush(stderr);
     } else {
         log_error("file_open_wrapper: File index %d out of range", g_file_open_index);
         fprintf(stderr, "ERROR: file_open_wrapper: File index %d out of range\n", g_file_open_index);
@@ -1384,9 +1383,8 @@ int file_open_wrapper(void) {
         return -1;
     }
     
-    // log_info("file_open_wrapper: Successfully opened '%s', handle: %p", filename, (void*)hFile);
-    // fprintf(stderr, "file_open_wrapper: Successfully opened '%s', handle: %p\n", filename, (void*)hFile);
-    // fflush(stderr);
+    fprintf(stderr, "file_open_wrapper: Successfully opened '%s', handle: %p\n", filename, (void*)hFile);
+    fflush(stderr);
     
     /* Store handle for file_read_word_wrapper to use */
     g_current_file_handle = hFile;
@@ -1436,11 +1434,11 @@ int file_read_word_wrapper(void) {
     
     /* Only log every 1000th call to reduce log verbosity during file loading */
     if (read_count % 1000 == 0) {
-        log_debug("file_read_word_wrapper: Call #%d", read_count);
+        fprintf(stderr, "file_read_word_wrapper: Call #%d\n", read_count);
+        fflush(stderr);
     }
     
     if (g_current_file_handle == INVALID_HANDLE_VALUE) {
-        log_error("file_read_word_wrapper: No file handle available");
         fprintf(stderr, "ERROR: file_read_word_wrapper: No file handle available\n");
         fflush(stderr);
         return -1;
@@ -1457,11 +1455,8 @@ int file_read_word_wrapper(void) {
         /* Check if this is actually EOF (ERROR_HANDLE_EOF = 38) */
         if (error == ERROR_HANDLE_EOF || error == 0) {
             /* EOF reached - this is normal at end of file */
-            log_debug("file_read_word_wrapper: EOF reached (error: %lu)", error);
             return -1; /* Return -1 to signal EOF clearly */
         }
-        log_error("file_read_word_wrapper: Failed to read from file");
-        log_windows_error("file_read_word_wrapper", error);
         fprintf(stderr, "ERROR: file_read_word_wrapper: Failed to read from file (error: %lu)\n", error);
         fflush(stderr);
         return -1;
@@ -1470,19 +1465,17 @@ int file_read_word_wrapper(void) {
     if (bytes_read != 2) {
         if (bytes_read == 0) {
             /* EOF - only log if it's an unexpected EOF (not when we're near end of file) */
-            log_debug("file_read_word_wrapper: EOF reached (0 bytes read), returning -1");
             return -1; /* Return -1 to signal EOF clearly */
         } else {
             /* Partial read - file has odd number of bytes */
-            log_debug("file_read_word_wrapper: Partial read (%lu bytes), treating as EOF", bytes_read);
-            /* Return -1 to signal EOF - don't try to use partial data */
             return -1; /* Signal EOF after partial read */
         }
     }
     
     /* Only log every 1000th word to reduce log verbosity during file loading */
     if (read_count % 1000 == 0) {
-        log_debug("file_read_word_wrapper: Read word: 0x%04x (call #%d)", word_buffer, read_count);
+        fprintf(stderr, "file_read_word_wrapper: Read word: 0x%04x (call #%d)\n", word_buffer, read_count);
+        fflush(stderr);
     }
     
     /* The original file_read_word would store this in memory and return a status */
