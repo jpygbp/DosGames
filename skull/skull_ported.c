@@ -5661,14 +5661,139 @@ undefined2 move_to_location(byte location_id, byte direction, uint message_id, c
 
 {
   #ifdef _WIN32
-  /* Simplified Windows version - skip DOS-specific operations */
+  /* Enhanced Windows version with full game logic */
   if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
+    log_error("move_to_location: Game state not initialized");
     return 0;
   }
-  /* Update location in memory for game logic compatibility */
-  MEM_WRITE32(MEM_LOCATION_DATA, location_id);
-  /* Return success */
-  return 0;
+  
+  __try {
+    uint current_location_id = (uint)location_id;
+    uint screen_id = 0;
+    byte game_flags = MEM_READ32(MEM_GAME_FLAGS);
+    
+    /* Display message if provided */
+    if (message_id != 0) {
+      display_message(message_id);
+    }
+    
+    /* Handle flag - drop all objects if set */
+    if (flag != '\0') {
+      drop_all_objects(MEM_READ32(MEM_STRING_PTR_14), 1);
+    }
+    
+    /* Validate direction */
+    if (direction >= MAX_DIRECTION_ID) {
+      /* Invalid direction - display error message */
+      uint error_msg = CONCAT11(VALUE_224, direction);
+      display_message(error_msg);
+      return context;
+    }
+    
+    /* Update location in memory */
+    MEM_WRITE32(MEM_LOCATION_DATA, direction);
+    
+    /* Calculate location pointer with bounds checking */
+    uintptr_t data_base = MEM_READ32(MEM_DATA_BASE);
+    uintptr_t location_offset = (uint)direction * ADDR_MULTIPLIER_LOCATION + data_base;
+    
+    if (location_offset + OFFSET_LOCATION_FLAGS + 1 >= g_gameState->memory_pool_size) {
+      log_error("move_to_location: Location offset out of bounds");
+      return 0;
+    }
+    
+    /* Get location flags */
+    byte direction_flags = g_gameState->memory_pool[location_offset + OFFSET_LOCATION_FLAGS];
+    
+    /* Update visit counter */
+    if (location_offset + 1 < g_gameState->memory_pool_size) {
+      g_gameState->memory_pool[location_offset + 1]++;
+    }
+    
+    /* Determine if full description should be shown */
+    byte current_location_byte = g_gameState->memory_pool[location_offset + 1];
+    if (((current_location_byte & 3) == 0) || (MEM_READ32(MEM_SPECIAL_FLAG) == 0)) {
+      screen_id = 1;
+    } else {
+      screen_id = 0;
+    }
+    
+    /* Check if location or direction requires special handling */
+    uintptr_t location_id_offset = ((uint)location_id & BIT_MASK_LOW_8) * ADDR_MULTIPLIER_LOCATION + data_base;
+    if (location_id_offset + OFFSET_LOCATION_FLAGS < g_gameState->memory_pool_size) {
+      byte location_flags = g_gameState->memory_pool[location_id_offset + OFFSET_LOCATION_FLAGS];
+      
+      if (((location_flags & BIT_MASK_1) != 0) || ((game_flags & BIT_MASK_8) != 0)) {
+        /* Check game state for special conditions */
+        int state_check = check_game_state();
+        if (state_check == 0) {
+          /* Game state check failed - display message */
+          if ((game_flags & 1) != 0) {
+            display_message_and_move(MSG_SPECIAL_ACTION_68, 0);
+          } else {
+            display_message(MSG_SPECIAL_ACTION_67);
+          }
+          return context;
+        }
+      }
+    }
+    
+    /* Check if movement is valid (location_id matches direction) */
+    if ((byte)current_location_id == direction) {
+      /* Valid movement - display location info */
+      
+      /* Check for special messages based on flags */
+      if (location_id_offset + OFFSET_LOCATION_FLAGS < g_gameState->memory_pool_size) {
+        byte loc_flags = g_gameState->memory_pool[location_id_offset + OFFSET_LOCATION_FLAGS];
+        
+        if (((loc_flags & BIT_MASK_1) != 0) && ((direction_flags & BIT_MASK_1) == 0)) {
+          /* Display special message based on game flags */
+          if ((game_flags & 8) == 0) {
+            display_message(MSG_SPECIAL_ACTION_81);
+          } else {
+            display_message(MSG_SPECIAL_ACTION_80);
+          }
+        }
+        
+        if (((loc_flags & BIT_MASK_4) == 0) && ((direction_flags & BIT_MASK_4) != 0)) {
+          /* Display counter-based message */
+          uint counter_msg = MEM_READ32(MEM_COUNTER_1) + VALUE_180 | MEM_SPECIAL_VALUE_4;
+          display_message(counter_msg);
+        }
+      }
+      
+      /* Display status screen and location description */
+      display_status_screen(screen_id);
+      display_location_description(location_offset);
+      
+      /* Check if movement should stop here */
+      if ((direction_flags & BIT_MASK_32) == RETURN_VALUE_STOP) {
+        return context;
+      }
+      
+      /* Update location buffer counter */
+      uintptr_t buffer_offset = MEM_LOCATION_BUFFER_2;
+      if (buffer_offset < g_gameState->memory_pool_size) {
+        g_gameState->memory_pool[buffer_offset]++;
+      }
+      
+      /* Clear special flag from location */
+      if (location_offset + OFFSET_LOCATION_FLAGS < g_gameState->memory_pool_size) {
+        g_gameState->memory_pool[location_offset + OFFSET_LOCATION_FLAGS] &= BIT_MASK_0xdf;
+      }
+      
+      return context;
+    }
+    
+    /* Invalid movement - display error message */
+    uint error_msg = CONCAT11(VALUE_224, direction);
+    display_message(error_msg);
+    return context;
+    
+  } __except(EXCEPTION_EXECUTE_HANDLER) {
+    log_exception_details(GetExceptionCode(), "move_to_location", __FILE__, __LINE__);
+    return 0;
+  }
   #else
   /* Original DOS implementation */
   char *location_char_ptr;
