@@ -5988,44 +5988,127 @@ void move_object_between_locations(uint object_id, int from_location, int to_loc
 
 {
   #ifdef _WIN32
-  /* Simplified Windows version - use take_object and drop_object */
+  /* Enhanced Windows version - move object between locations with validation */
   if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
     return;
   }
   
-  log_info("move_object_between_locations: Moving object %u from location %d to %d (Windows stub)", 
+  log_info("move_object_between_locations: Moving object %u from location %d to %d", 
            object_id, from_location, to_location);
   
   setup_function_context_wrapper();
   
   /* Bounds check object ID */
-  if (object_id >= 200) {
+  if (object_id >= MAX_OBJECT_ID) {
     log_warning("move_object_between_locations: Invalid object ID %u", object_id);
     return;
   }
   
-  /* Simplified: remove from source and add to destination */
-  /* If from_location is 255 (inventory), remove from inventory */
-  if (from_location == 255) {
-    remove_object_from_list((byte*)(g_gameState->memory_pool + MEM_LOCATION_BUFFER), (byte)object_id);
+  /* Get base pointer for object data */
+  uintptr_t base_pointer_offset = MEM_BASE_POINTER;
+  if (base_pointer_offset + 4 > g_gameState->memory_pool_size) {
+    log_warning("move_object_between_locations: Base pointer offset out of bounds");
+    return;
+  }
+  
+  uint base_pointer = MEM_READ32(base_pointer_offset);
+  uintptr_t from_location_ptr = from_location * SIZE_OBJECT_ENTRY + base_pointer;
+  
+  if (from_location_ptr + SIZE_OBJECT_ENTRY > g_gameState->memory_pool_size) {
+    log_warning("move_object_between_locations: from_location_ptr 0x%zx out of bounds", from_location_ptr);
+    return;
+  }
+  
+  /* Check if destination is valid based on from_location flags */
+  uint from_location_flags = MEM_READ32(from_location_ptr + 6);
+  uint can_proceed = 0;
+  
+  if (to_location == 0) {
+    /* Moving to location 0 - check if from_location has OPEN flag */
+    can_proceed = from_location_flags & OBJ_FLAG_OPEN;
+    if (can_proceed == 0) {
+      log_info("move_object_between_locations: Cannot move to location 0 - from_location not open");
+      display_message(MSG_SPECIAL_ACTION_62);
+      return;
+    }
   } else {
-    /* Remove from location list */
-    uintptr_t location_offset = from_location * SIZE_LOCATION_ENTRY + MEM_READ32(MEM_DATA_BASE);
-    if (location_offset < g_gameState->memory_pool_size) {
-      remove_object_from_list((byte*)(g_gameState->memory_pool + location_offset), (byte)object_id);
+    /* Moving to non-zero location - check LOCKED and container flags */
+    if ((from_location_flags & OBJ_FLAG_LOCKED) == 0) {
+      log_info("move_object_between_locations: Cannot move - from_location %d not locked", from_location);
+      display_formatted_message(MSG_SPECIAL_ACTION_60, from_location);
+      return;
+    }
+    
+    if ((MEM_READ32(from_location_ptr + 10) & BIT_MASK_16384) == 0) {
+      log_info("move_object_between_locations: Cannot move - from_location %d not a container", from_location);
+      display_message(MSG_SPECIAL_ACTION_61);
+      return;
+    }
+    
+    can_proceed = 1;
+    
+    /* Special case: if object_id is VALUE_137, add special object to inventory */
+    if (object_id == VALUE_137) {
+      log_info("move_object_between_locations: Special case - object %u, adding special item", object_id);
+      uintptr_t temp_offset = MEM_LOCATION_TEMP_2;
+      if (temp_offset < g_gameState->memory_pool_size) {
+        g_gameState->memory_pool[temp_offset]++;
+      }
+      object_id = MEM_POINTER_STORAGE_133;
+      add_object_to_list((byte*)(g_gameState->memory_pool + MEM_LOCATION_BUFFER), MEM_POINTER_STORAGE_133);
     }
   }
   
-  /* Add to destination */
-  if (to_location == 255) {
-    add_object_to_list((byte*)(g_gameState->memory_pool + MEM_LOCATION_BUFFER), (byte)object_id);
-  } else {
-    uintptr_t location_offset = to_location * SIZE_LOCATION_ENTRY + MEM_READ32(MEM_DATA_BASE);
-    if (location_offset < g_gameState->memory_pool_size) {
-      add_object_to_list((byte*)(g_gameState->memory_pool + location_offset), (byte)object_id);
+  /* Check if object is in inventory, or try to take it */
+  int check_result = is_object_in_inventory(object_id);
+  if (check_result == 0) {
+    log_info("move_object_between_locations: Object %u not in inventory, attempting to take", object_id);
+    check_result = take_object(object_id, 1);
+    if (check_result == 0) {
+      log_warning("move_object_between_locations: Failed to take object %u", object_id);
+      return;
     }
   }
   
+  /* Get object data */
+  uintptr_t object_offset = object_id * SIZE_OBJECT_ENTRY + base_pointer;
+  if (object_offset + SIZE_OBJECT_ENTRY > g_gameState->memory_pool_size) {
+    log_warning("move_object_between_locations: object_offset 0x%zx out of bounds", object_offset);
+    return;
+  }
+  
+  /* Check if object state is less than from_location state */
+  byte object_state = g_gameState->memory_pool[object_offset + 8];
+  byte from_location_state = g_gameState->memory_pool[from_location_ptr + 8];
+  
+  if (object_state >= from_location_state) {
+    log_info("move_object_between_locations: Object state %u >= from_location state %u, cannot move", 
+             object_state, from_location_state);
+    display_formatted_message(MSG_SPECIAL_ACTION_63, from_location);
+    return;
+  }
+  
+  /* Remove from inventory */
+  log_info("move_object_between_locations: Removing object %u from inventory", object_id);
+  remove_object_from_list((byte*)(g_gameState->memory_pool + MEM_LOCATION_BUFFER), (byte)object_id);
+  
+  /* Add to from_location (the container) */
+  log_info("move_object_between_locations: Adding object %u to from_location %d", object_id, from_location);
+  uintptr_t from_list_offset = from_location_ptr + 1;
+  if (from_list_offset < g_gameState->memory_pool_size) {
+    add_object_to_list((byte*)(g_gameState->memory_pool + from_list_offset), (byte)object_id);
+  }
+  
+  /* Update object state to match from_location state */
+  if (object_offset + 2 < g_gameState->memory_pool_size) {
+    g_gameState->memory_pool[object_offset + 2] = from_location_state;
+    log_info("move_object_between_locations: Set object state to %u", from_location_state);
+  }
+  
+  /* Display success message */
+  display_formatted_message(MSG_SPECIAL_ACTION_59, from_location);
+  
+  log_info("move_object_between_locations: Successfully moved object %u", object_id);
   return;
   
   #else
@@ -6164,47 +6247,89 @@ undefined2 take_all_objects(int location_id, undefined2 result)
 
 {
   #ifdef _WIN32
-  /* Simplified Windows version - iterate and call take_object() */
+  /* Enhanced Windows version - iterate through location and take all takeable objects */
   if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
     return result;
   }
   
-  log_info("take_all_objects: Taking all objects from location %d (Windows stub)", location_id);
+  log_info("take_all_objects: Taking all objects from location %d", location_id);
   
   setup_function_context_wrapper();
   
-  /* Get the first object in the current location */
-  uintptr_t location_offset = MEM_READ32(MEM_LOCATION_DATA) * ADDR_MULTIPLIER_LOCATION + MEM_READ32(MEM_DATA_BASE);
+  /* Get the current location data */
+  uintptr_t location_data_offset = MEM_LOCATION_DATA;
+  uintptr_t data_base_offset = MEM_DATA_BASE;
+  
+  if (location_data_offset + 4 > g_gameState->memory_pool_size ||
+      data_base_offset + 4 > g_gameState->memory_pool_size) {
+    log_warning("take_all_objects: Memory offsets out of bounds");
+    return result;
+  }
+  
+  uint current_location = MEM_READ32(location_data_offset);
+  uint data_base = MEM_READ32(data_base_offset);
+  uintptr_t location_offset = current_location * ADDR_MULTIPLIER_LOCATION + data_base;
+  
   if (location_offset >= g_gameState->memory_pool_size) {
-    log_warning("take_all_objects: location offset out of bounds");
+    log_warning("take_all_objects: location offset 0x%zx out of bounds", location_offset);
     return result;
   }
   
   uint current_object_id = (uint)g_gameState->memory_pool[location_offset];
-  bool objects_taken = false;
+  int objects_taken = 0;
+  int objects_skipped = 0;
+  int max_iterations = 100; /* Prevent infinite loops */
+  
+  log_info("take_all_objects: Starting at location 0x%zx, first object=%u", location_offset, current_object_id);
   
   /* Iterate through objects and take them */
-  while (current_object_id != 0 && current_object_id < 200) {
-    uintptr_t object_offset = current_object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER);
+  while (current_object_id != 0 && current_object_id < MAX_OBJECT_ID && max_iterations-- > 0) {
+    uintptr_t base_pointer_offset = MEM_BASE_POINTER;
+    if (base_pointer_offset + 4 > g_gameState->memory_pool_size) {
+      break;
+    }
+    
+    uint base_pointer = MEM_READ32(base_pointer_offset);
+    uintptr_t object_offset = current_object_id * SIZE_OBJECT_ENTRY + base_pointer;
+    
     if (object_offset + SIZE_OBJECT_ENTRY > g_gameState->memory_pool_size) {
+      log_warning("take_all_objects: object offset 0x%zx out of bounds", object_offset);
       break;
     }
     
     /* Get next object before taking (since take_object modifies the list) */
     uint next_object_id = (uint)g_gameState->memory_pool[object_offset];
     
-    /* Check if object is takeable */
+    /* Check if object is takeable (state < MAX_OBJECT_ID) */
     byte object_state = g_gameState->memory_pool[object_offset + 8];
     if (object_state < MAX_OBJECT_ID) {
-      take_object(current_object_id, 0);
-      objects_taken = true;
+      log_info("take_all_objects: Attempting to take object %u (state=%u)", current_object_id, object_state);
+      
+      /* Use location_id=1 to suppress individual success messages */
+      int take_result = take_object(current_object_id, 1);
+      if (take_result != 0) {
+        objects_taken++;
+        log_info("take_all_objects: Successfully took object %u", current_object_id);
+      } else {
+        objects_skipped++;
+        log_info("take_all_objects: Failed to take object %u (too heavy or other reason)", current_object_id);
+      }
+    } else {
+      objects_skipped++;
+      log_info("take_all_objects: Skipping object %u (state=%u >= MAX_OBJECT_ID)", current_object_id, object_state);
     }
     
     current_object_id = next_object_id;
   }
   
-  if (!objects_taken) {
-    display_message(MSG_SPECIAL_ACTION_56);
+  log_info("take_all_objects: Completed - took %d objects, skipped %d", objects_taken, objects_skipped);
+  
+  /* Display appropriate message */
+  if (objects_taken == 0) {
+    display_message(MSG_SPECIAL_ACTION_56); /* "Nothing to take" or similar */
+  } else {
+    /* Display a success message for taking multiple items */
+    display_formatted_message(MSG_SPECIAL_ACTION_49, objects_taken);
   }
   
   return result;
@@ -6263,12 +6388,12 @@ undefined2 drop_all_objects(int location_id, undefined2 result)
 
 {
   #ifdef _WIN32
-  /* Simplified Windows version - iterate inventory and call drop_object() */
+  /* Enhanced Windows version - iterate through inventory and drop all objects */
   if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
     return result;
   }
   
-  log_info("drop_all_objects: Dropping all objects to location %d (Windows stub)", location_id);
+  log_info("drop_all_objects: Dropping all objects to location %d", location_id);
   
   setup_function_context_wrapper();
   
@@ -6282,24 +6407,67 @@ undefined2 drop_all_objects(int location_id, undefined2 result)
   
   /* Check if inventory is empty */
   if (current_object_id == 0 || current_object_id == MEM_SPECIAL_VALUE_1) {
-    display_message(MSG_SPECIAL_ACTION_14);
+    log_info("drop_all_objects: Inventory is empty (object_id=%u)", current_object_id);
+    display_message(MSG_SPECIAL_ACTION_14); /* "You're not carrying anything" or similar */
     return result;
   }
   
+  int objects_dropped = 0;
+  int objects_skipped = 0;
+  int max_iterations = 100; /* Prevent infinite loops */
+  
+  log_info("drop_all_objects: Starting with first object=%u", current_object_id);
+  
   /* Iterate through inventory and drop objects */
-  while (current_object_id != 0 && current_object_id != MEM_SPECIAL_VALUE_1 && current_object_id < 200) {
-    uintptr_t object_offset = current_object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER);
+  while (current_object_id != 0 && 
+         current_object_id != MEM_SPECIAL_VALUE_1 && 
+         current_object_id < MAX_OBJECT_ID &&
+         max_iterations-- > 0) {
+    
+    uintptr_t base_pointer_offset = MEM_BASE_POINTER;
+    if (base_pointer_offset + 4 > g_gameState->memory_pool_size) {
+      break;
+    }
+    
+    uint base_pointer = MEM_READ32(base_pointer_offset);
+    uintptr_t object_offset = current_object_id * SIZE_OBJECT_ENTRY + base_pointer;
+    
     if (object_offset + SIZE_OBJECT_ENTRY > g_gameState->memory_pool_size) {
+      log_warning("drop_all_objects: object offset 0x%zx out of bounds", object_offset);
       break;
     }
     
     /* Get next object before dropping (since drop_object modifies the list) */
     uint next_object_id = (uint)g_gameState->memory_pool[object_offset];
     
-    /* Drop the object */
-    drop_object(current_object_id, 0);
+    /* Check object state - if > 199, can't drop */
+    byte object_state = g_gameState->memory_pool[object_offset + 8];
+    if (object_state <= 199) {
+      log_info("drop_all_objects: Attempting to drop object %u (state=%u)", current_object_id, object_state);
+      
+      /* Use location_id=1 to suppress individual success messages */
+      int drop_result = drop_object(current_object_id, 1);
+      if (drop_result != 0) {
+        objects_dropped++;
+        log_info("drop_all_objects: Successfully dropped object %u", current_object_id);
+      } else {
+        objects_skipped++;
+        log_info("drop_all_objects: Failed to drop object %u", current_object_id);
+      }
+    } else {
+      objects_skipped++;
+      log_info("drop_all_objects: Skipping object %u (state=%u > 199, cannot drop)", current_object_id, object_state);
+    }
     
     current_object_id = next_object_id;
+  }
+  
+  log_info("drop_all_objects: Completed - dropped %d objects, skipped %d", objects_dropped, objects_skipped);
+  
+  /* Display appropriate message */
+  if (objects_dropped > 0) {
+    /* Display a success message for dropping multiple items */
+    display_formatted_message(MSG_SPECIAL_ACTION_55, objects_dropped);
   }
   
   return result;
