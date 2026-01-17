@@ -1587,16 +1587,18 @@ int parse_command_input(int token_buffer,int input_buffer)
           #endif
             if (token_entry_offset + 4 <= g_gameState->memory_pool_size) {
               *(int *)(g_gameState->memory_pool + token_entry_offset) = command_id;
-              log_info("parse_command_input: Wrote command_id %d to token buffer at offset 0x%x", 
-                       command_id, token_entry_offset);
+              /* Removed log_info here to prevent exception */
+              fprintf(stderr, "parse_command_input: Wrote command_id %d to token buffer at offset 0x%x\n", 
+                      command_id, token_entry_offset);
+              fflush(stderr);
             } else {
-              log_warning("parse_command_input: token_entry_offset (0x%x) out of bounds (pool_size=0x%x)", 
-                          token_entry_offset, (unsigned int)g_gameState->memory_pool_size);
+              fprintf(stderr, "parse_command_input: token_entry_offset (0x%x) out of bounds (pool_size=0x%x)\n", 
+                      token_entry_offset, (unsigned int)g_gameState->memory_pool_size);
+              fflush(stderr);
             }
           #ifdef _WIN32
           } __except(EXCEPTION_EXECUTE_HANDLER) {
-            log_exception_details(GetExceptionCode(), "parse_command_input: token buffer write (non-fatal)", __FILE__, __LINE__);
-            fprintf(stderr, "parse_command_input: Exception writing command_id to token buffer (non-fatal)\n");
+            fprintf(stderr, "parse_command_input: Exception 0x%x writing command_id to token buffer (non-fatal)\n", GetExceptionCode());
             fflush(stderr);
             /* Continue - command_id write failure is not fatal */
           }
@@ -1626,16 +1628,19 @@ int parse_command_input(int token_buffer,int input_buffer)
                 uint32_t token_start_offset = token_entry_offset + SIZE_WORD;
                 if (token_start_offset + 4 <= g_gameState->memory_pool_size) {
                   *(int *)(g_gameState->memory_pool + token_start_offset) = token_start;
-                  log_info("parse_command_input: Wrote token_start %d to token buffer at offset 0x%x", 
-                           token_start, token_start_offset);
+                  /* Removed log_info here to prevent exception before token_count increment */
+                  fprintf(stderr, "parse_command_input: Wrote token_start %d to token buffer at offset 0x%x\n", 
+                          token_start, token_start_offset);
+                  fflush(stderr);
                 }
                 token_count = token_count + 1;
+                fprintf(stderr, "parse_command_input: Incremented token_count to %d\n", token_count);
+                fflush(stderr);
               }
             }
           #ifdef _WIN32
           } __except(EXCEPTION_EXECUTE_HANDLER) {
-            log_exception_details(GetExceptionCode(), "parse_command_input: token_start write (non-fatal)", __FILE__, __LINE__);
-            fprintf(stderr, "parse_command_input: Exception writing token_start to token buffer (non-fatal)\n");
+            fprintf(stderr, "parse_command_input: Exception 0x%x writing token_start to token buffer (non-fatal)\n", GetExceptionCode());
             fflush(stderr);
             /* Continue - token_start write failure is not fatal, but don't increment token_count */
           }
@@ -1643,8 +1648,7 @@ int parse_command_input(int token_buffer,int input_buffer)
           } /* End of else (command_id != 0) */
         #ifdef _WIN32
         } __except(EXCEPTION_EXECUTE_HANDLER) {
-          log_exception_details(GetExceptionCode(), "parse_command_input: command_id handling (non-fatal)", __FILE__, __LINE__);
-          fprintf(stderr, "parse_command_input: Exception handling command_id result (non-fatal, continuing)\n");
+          fprintf(stderr, "parse_command_input: Exception 0x%x handling command_id result (non-fatal, continuing)\n", GetExceptionCode());
           fflush(stderr);
           /* If exception occurs, treat as invalid token and exit loop */
           if (token_count == 0) {
