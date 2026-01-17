@@ -2284,13 +2284,10 @@ int lookup_command(undefined2 command_string_ptr)
       /* FIXED: Call string_length() directly with pointer instead of using wrapper */
       /* This avoids the int-to-pointer conversion issue */
       string_len = string_length(string_ptr_for_length);
-      log_info("lookup_command: string_length returned %d for offset 0x%x (ptr=0x%x)", 
-               string_len, string_offset, (uintptr_t)string_ptr_for_length);
       fprintf(stderr, "lookup_command: string_length returned %d for offset 0x%x\n", 
               string_len, string_offset);
       fflush(stderr);
     } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "lookup_command: string_length (non-fatal)", __FILE__, __LINE__);
       fprintf(stderr, "lookup_command: Exception in string_length (0x%x) at offset 0x%x - skipping entry\n", 
               GetExceptionCode(), string_offset);
       fflush(stderr);
@@ -2347,24 +2344,43 @@ int lookup_command(undefined2 command_string_ptr)
       continue;
     }
     
+    fprintf(stderr, "lookup_command: Setting up pointers - command_str_offset=0x%x, table_str_offset=0x%x\n", 
+            command_str_offset, table_str_offset);
+    fflush(stderr);
+    
     char* command_str = (char*)(g_gameState->memory_pool + command_str_offset);
     char* table_str = (char*)(g_gameState->memory_pool + table_str_offset);
     
-    /* Log the actual strings before comparison */
-    log_info("lookup_command: command_str at offset 0x%x = \"%.10s\" (first 10 chars)", command_str_offset, command_str);
-    log_info("lookup_command: table_str at offset 0x%x = \"%.10s\" (first 10 chars)", table_str_offset, table_str);
-    fprintf(stderr, "lookup_command: Comparing command=\"%.10s\" (offset=0x%x) with table=\"%.10s\" (offset=0x%x)\n", 
-            command_str, command_str_offset, table_str, table_str_offset);
+    fprintf(stderr, "lookup_command: Pointers set up successfully\n");
     fflush(stderr);
     
+    /* FIXED: Decrypt the table string (XOR 0xFF) before comparison */
+    /* The command table is encrypted, so we need to decrypt it */
+    /* Create a temporary buffer for the decrypted string */
+    char decrypted_table_str[256];
+    memset(decrypted_table_str, 0, sizeof(decrypted_table_str)); /* Initialize to zeros */
+    int decrypt_len = (string_len < 255) ? string_len : 255;
+    
+    fprintf(stderr, "lookup_command: About to decrypt string_len=%d\n", string_len);
+    fflush(stderr);
+    
+    for (int i = 0; i < decrypt_len; i++) {
+      decrypted_table_str[i] = table_str[i] ^ 0xFF; /* XOR with 0xFF to decrypt */
+    }
+    decrypted_table_str[decrypt_len] = '\0'; /* Null terminate */
+    
+    /* Log the actual strings before comparison */
+    fprintf(stderr, "lookup_command: command=\"%.10s\" (offset=0x%x), encrypted_table=\"%.10s\", decrypted_table=\"%.10s\" (offset=0x%x)\n", 
+            command_str, command_str_offset, table_str, decrypted_table_str, table_str_offset);
+    fflush(stderr);
+    
+    /* FIXED: Compare with decrypted string instead of encrypted string */
     #ifdef _WIN32
     __try {
-      compare_result = string_compare(command_str, table_str, STRING_COMPARE_LENGTH);
-      log_info("lookup_command: string_compare returned %d", compare_result);
+      compare_result = string_compare(command_str, decrypted_table_str, STRING_COMPARE_LENGTH);
       fprintf(stderr, "lookup_command: string_compare returned %d\n", compare_result);
       fflush(stderr);
     } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "lookup_command: string_compare (non-fatal)", __FILE__, __LINE__);
       fprintf(stderr, "lookup_command: Exception in string_compare (0x%x) - skipping entry\n", GetExceptionCode());
       fflush(stderr);
       /* Skip this entry and continue to next one - don't break entire loop */
@@ -2373,11 +2389,12 @@ int lookup_command(undefined2 command_string_ptr)
       continue; /* Continue to next iteration */
     }
     #else
-    compare_result = string_compare(command_str, table_str, STRING_COMPARE_LENGTH);
+    compare_result = string_compare(command_str, decrypted_table_str, STRING_COMPARE_LENGTH);
     #endif
     
     /* FIXED: Verify exact match - both strings must be same length AND comparison must match */
     /* STRING_COMPARE_LENGTH is only 6, so we need to verify lengths match exactly */
+    /* Use decrypted_table_str for length comparison */
     int command_str_len = 0;
     #ifdef _WIN32
     __try {
