@@ -3689,31 +3689,89 @@ undefined2 match_game_objects(uint *command_data,uint *result_ptr,char *object_n
 
 {
 #ifdef _WIN32
-  /* Simplified Windows version - stub for testing */
+  /* Enhanced Windows version with full object matching logic */
   if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
+    log_error("match_game_objects: Game state not initialized");
     return 0;
   }
   
-  log_info("match_game_objects: command_data=%p, result_ptr=%p, object_name=%s (Windows stub)", 
-           command_data, result_ptr, object_name ? object_name : "(null)");
-  
-  setup_function_context_wrapper();
-  
-  /* Simulate object matching by returning a default success value */
-  /* In a real implementation, this would search for objects matching the criteria */
-  
-  /* If object_name is empty, return "no object specified" result */
-  if (object_name == NULL || *object_name == '\0') {
-    return 2; /* Default "continue" result */
+  __try {
+    /* Validate parameters */
+    if (command_data == NULL) {
+      log_warning("match_game_objects: command_data is NULL");
+      return 2; /* Continue */
+    }
+    
+    /* Check if this is an empty command */
+    if (command_data[CHAR_CARRIAGE_RETURN] == RETURN_VALUE_STOP) {
+      if (object_name == NULL || *object_name == '\0') {
+        /* No object specified - display error message */
+        display_message(MSG_NO_OBJECT_SPECIFIED);
+        return 2; /* Continue */
+      }
+      
+      /* Display "can't see that here" message */
+      display_message(MSG_CANT_SEE_OBJECT);
+      return 2; /* Continue */
+    }
+    
+    /* Get current location for object searching */
+    uint current_location = MEM_READ32(MEM_LOCATION_DATA);
+    uintptr_t location_offset = current_location * SIZE_LOCATION_ENTRY + MEM_READ32(MEM_DATA_BASE);
+    
+    /* Validate location offset */
+    if (location_offset + SIZE_LOCATION_ENTRY >= g_gameState->memory_pool_size) {
+      log_warning("match_game_objects: location_offset (0x%x) out of bounds", (unsigned int)location_offset);
+      return 2; /* Continue */
+    }
+    
+    /* Search for objects in current location */
+    byte *location_list = g_gameState->memory_pool + location_offset;
+    uint match_count_location = find_matching_objects(location_list, (uint)(uintptr_t)command_data, MEM_OBJECT_BUFFER);
+    
+    /* Search for objects in inventory */
+    uint match_count_inventory = find_matching_objects(
+      g_gameState->memory_pool + MEM_LOCATION_BUFFER, 
+      (uint)(uintptr_t)command_data, 
+      MEM_OBJECT_BUFFER + match_count_location
+    );
+    
+    uint total_matches = match_count_location + match_count_inventory;
+    
+    log_info("match_game_objects: Found %d matches (%d in location, %d in inventory)", 
+             total_matches, match_count_location, match_count_inventory);
+    
+    /* Handle match results */
+    if (total_matches == 0) {
+      /* Check if we should display "can't see that" message */
+      if ((command_data[OFFSET_PARAM_D] != MEM_READ32(MEM_STATUS_FLAG)) &&
+          ((command_data[OFFSET_PARAM_D] & BIT_MASK_32768) == 0)) {
+        display_message(MSG_NO_OBJECT_FOUND);
+        return 3; /* Error */
+      }
+      return 2; /* Continue */
+    }
+    else if (total_matches == 1) {
+      /* Single match - use it */
+      *command_data = (uint)g_gameState->memory_pool[MEM_OBJECT_BUFFER];
+      log_info("match_game_objects: Single match - object ID %d", *command_data);
+      return 1; /* Success */
+    }
+    else {
+      /* Multiple matches - need disambiguation */
+      log_info("match_game_objects: Multiple matches (%d) - need disambiguation", total_matches);
+      display_message(MSG_WHICH_OBJECT);
+      
+      /* Store match count for later disambiguation */
+      MEM_WRITE32(MEM_MATCH_COUNT, total_matches);
+      
+      return 2; /* Continue - need more input */
+    }
+    
+  } __except(EXCEPTION_EXECUTE_HANDLER) {
+    log_exception_details(GetExceptionCode(), "match_game_objects", __FILE__, __LINE__);
+    return 2; /* Continue on error */
   }
-  
-  /* If command_data indicates no valid command, return error */
-  if (command_data != NULL && command_data[CHAR_CARRIAGE_RETURN] == RETURN_VALUE_STOP) {
-    return 2; /* Default "continue" result */
-  }
-  
-  /* Otherwise, simulate finding a match */
-  return 1; /* Indicate object was found/matched */
   
 #else
   /* Original DOS implementation */
@@ -3884,21 +3942,108 @@ uint find_matching_objects(byte *list_ptr,uint search_param,int buffer_offset)
 
 {
 #ifdef _WIN32
-  /* Simplified Windows version - stub for testing */
+  /* Enhanced Windows version with full object matching logic */
   if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
+    log_error("find_matching_objects: Game state not initialized");
     return 0;
   }
   
-  log_info("find_matching_objects: list_ptr=%p, search_param=0x%x, buffer_offset=0x%x (Windows stub)", 
-           list_ptr, search_param, buffer_offset);
-  
-  setup_function_context_wrapper();
-  
-  /* Simulate finding matching objects */
-  /* In a real implementation, this would iterate through the list and match objects */
-  
-  /* Return a simulated match count */
-  return 1; /* Indicate one object was found */
+  __try {
+    uint match_count = 0;
+    byte object_id;
+    
+    /* Validate pointers */
+    if (list_ptr == NULL) {
+      log_warning("find_matching_objects: list_ptr is NULL");
+      return 0;
+    }
+    
+    /* Validate buffer_offset */
+    if (buffer_offset < 0 || buffer_offset + 256 >= (int)g_gameState->memory_pool_size) {
+      log_warning("find_matching_objects: buffer_offset (0x%x) out of bounds", buffer_offset);
+      return 0;
+    }
+    
+    /* Get search parameters */
+    uintptr_t search_param_offset = (uintptr_t)search_param;
+    if (search_param_offset >= g_gameState->memory_pool_size) {
+      /* search_param might be a direct pointer, convert to offset */
+      search_param_offset = search_param - (uintptr_t)g_gameState->memory_pool;
+    }
+    
+    /* Validate search_param offset */
+    if (search_param_offset + OFFSET_PARAM_1A + 1 >= g_gameState->memory_pool_size) {
+      log_warning("find_matching_objects: search_param offset out of bounds");
+      return 0;
+    }
+    
+    byte search_flag_1 = g_gameState->memory_pool[search_param_offset + OFFSET_PARAM_E];
+    byte search_flag_2 = g_gameState->memory_pool[search_param_offset + OFFSET_PARAM_1A];
+    uint search_flags = *(uint*)(g_gameState->memory_pool + search_param_offset + OFFSET_PARAM_1A);
+    
+    /* Iterate through object list */
+    object_id = *list_ptr;
+    byte *current_list_ptr = list_ptr;
+    
+    while (object_id != 0 && match_count < 255) {
+      uint object_index = object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER);
+      
+      /* Validate object_index */
+      if (object_index + SIZE_OBJECT_ENTRY >= g_gameState->memory_pool_size) {
+        log_warning("find_matching_objects: object_index (0x%x) out of bounds", object_index);
+        break;
+      }
+      
+      bool should_match = false;
+      
+      /* Check if object matches search criteria */
+      if (search_flag_1 == 0) {
+        /* Check object type/category */
+        byte object_category = g_gameState->memory_pool[object_index + 4];
+        byte object_property = g_gameState->memory_pool[object_index + OFFSET_PARAM_5];
+        
+        if ((search_flags & BIT_MASK_2048) == 0) {
+          /* Simple category match */
+          if (object_category == search_flag_2) {
+            should_match = true;
+          }
+        } else {
+          /* Property-based match */
+          if (object_property == search_flag_2 || object_category == search_flag_2) {
+            should_match = true;
+          }
+        }
+      } else {
+        /* search_flag_1 != 0 - different matching logic */
+        should_match = true; /* Match all objects when flag is set */
+      }
+      
+      /* If object matches, add to buffer */
+      if (should_match) {
+        if (buffer_offset + match_count < (int)g_gameState->memory_pool_size) {
+          g_gameState->memory_pool[buffer_offset + match_count] = object_id;
+          match_count++;
+        } else {
+          log_warning("find_matching_objects: buffer overflow at match %d", match_count);
+          break;
+        }
+      }
+      
+      /* Move to next object in list */
+      current_list_ptr++;
+      if ((uintptr_t)current_list_ptr >= (uintptr_t)g_gameState->memory_pool + g_gameState->memory_pool_size) {
+        break;
+      }
+      object_id = *current_list_ptr;
+    }
+    
+    log_info("find_matching_objects: Found %d matching objects", match_count);
+    return match_count;
+    
+  } __except(EXCEPTION_EXECUTE_HANDLER) {
+    log_exception_details(GetExceptionCode(), "find_matching_objects", __FILE__, __LINE__);
+    return 0;
+  }
   
 #else
   /* Original DOS implementation */
