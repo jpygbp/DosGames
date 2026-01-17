@@ -2256,50 +2256,38 @@ int lookup_command(undefined2 command_string_ptr)
       continue; /* Continue to next iteration */
     }
     
-    /* Log string table access for debugging */
+    /* FIXED: Get string length by scanning for null byte (0x00) in encrypted data */
+    /* The encrypted strings have null terminators (0xFF encrypted to 0x00) */
     uint32_t string_addr = string_table_base + string_offset;
-    if (string_addr < g_gameState->memory_pool_size && string_addr + 64 < g_gameState->memory_pool_size) {
-      char* debug_string = (char*)(g_gameState->memory_pool + string_addr);
-      log_info("lookup_command: Reading string at offset 0x%x (addr=0x%x): \"%.20s\"", 
-               string_offset, string_addr, debug_string);
-      fprintf(stderr, "lookup_command: Reading string at offset 0x%x (addr=0x%x): \"%.20s\"\n",
-              string_offset, string_addr, debug_string);
-      fflush(stderr);
-    }
-    
-    /* Convert offset to pointer for string_length */
-    char* string_ptr_for_length = (char*)(g_gameState->memory_pool + string_table_base + string_offset);
-    uintptr_t string_ptr_offset = string_table_base + string_offset;
-    if (string_ptr_offset >= g_gameState->memory_pool_size || 
-        string_ptr_offset + 256 > g_gameState->memory_pool_size) {
-      log_warning("lookup_command: string_ptr_offset (0x%x) out of bounds (pool_size=0x%x)", 
-                  string_ptr_offset, (unsigned int)g_gameState->memory_pool_size);
-      fprintf(stderr, "lookup_command: string_ptr_offset (0x%x) out of bounds\n", string_ptr_offset);
+    if (string_addr >= g_gameState->memory_pool_size || string_addr + 256 > g_gameState->memory_pool_size) {
+      fprintf(stderr, "lookup_command: string_addr (0x%x) out of bounds\n", string_addr);
       fflush(stderr);
       break;
     }
     
-    #ifdef _WIN32
-    __try {
-      /* FIXED: Call string_length() directly with pointer instead of using wrapper */
-      /* This avoids the int-to-pointer conversion issue */
-      string_len = string_length(string_ptr_for_length);
-      fprintf(stderr, "lookup_command: string_length returned %d for offset 0x%x\n", 
-              string_len, string_offset);
-      fflush(stderr);
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-      fprintf(stderr, "lookup_command: Exception in string_length (0x%x) at offset 0x%x - skipping entry\n", 
-              GetExceptionCode(), string_offset);
-      fflush(stderr);
-      /* Skip this entry and continue to next one - don't break entire loop */
-      loop_counter = loop_counter + 1;
-      /* Try to advance offset - use a safe default increment if we can't determine string length */
-      string_offset = string_offset + 10; /* Safe default increment */
-      continue; /* Continue to next iteration */
+    /* Scan for null byte to find string length */
+    char* encrypted_str = (char*)(g_gameState->memory_pool + string_addr);
+    string_len = 0;
+    while (string_len < 256 && string_addr + string_len < g_gameState->memory_pool_size) {
+      if (encrypted_str[string_len] == '\0') {
+        break; /* Found null terminator */
+      }
+      string_len++;
     }
-    #else
-    string_len = string_length(string_ptr_for_length);
-    #endif
+    
+    fprintf(stderr, "lookup_command: Found string at offset 0x%x (addr=0x%x), length=%d\n",
+            string_offset, string_addr, string_len);
+    fflush(stderr);
+    
+    /* Show first few encrypted bytes for debugging */
+    if (string_len > 0 && string_len <= 20) {
+      fprintf(stderr, "lookup_command: Encrypted bytes: ");
+      for (int i = 0; i < string_len && i < 10; i++) {
+        fprintf(stderr, "%02x ", (unsigned char)encrypted_str[i]);
+      }
+      fprintf(stderr, "\n");
+      fflush(stderr);
+    }
     
     if (string_len <= 0 || string_len > 256) {
       log_warning("lookup_command: Invalid string_len (%d) at offset 0x%x (base=0x%x), skipping entry", 
