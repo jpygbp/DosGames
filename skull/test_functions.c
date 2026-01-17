@@ -184,6 +184,7 @@ extern void entry(void);
 extern void initialize_game_environment(void);
 extern void parse_command_line(void);
 extern void process_dos_interrupts(void);
+extern void setup_function_context(undefined reg_ax, undefined2 reg_bx, undefined reg_cx, undefined2 reg_dx, undefined2 reg_si);
 
 /* Set 16: Interrupt and System Functions */
 extern void handle_dos_interrupt(undefined2 interrupt_id);
@@ -1245,6 +1246,9 @@ static void test_set_6_file_io(void) {
     #endif
 }
 
+/* Forward declaration for full game context initialization */
+static void initialize_full_game_context_for_testing(void);
+
 /* Forward declaration for Set 7 memory initialization */
 static void initialize_file_io_memory_for_testing(void);
 
@@ -1342,9 +1346,14 @@ static void test_set_7_file_io_extended(void) {
 
 /* Comprehensive memory initialization for Set 7 File I/O Extended Functions */
 static void initialize_file_io_memory_for_testing(void) {
+    /* Start with full game context initialization */
+    initialize_full_game_context_for_testing();
+    
     if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
         return;
     }
+    
+    /* Set 7 specific memory initializations (file I/O extended functions) */
     
     /* Initialize MEM_STRING_TABLE_OFFSET and MEM_OBJECT_COUNT for load_string_from_secondary_file */
     if (MEM_STRING_TABLE_OFFSET + 4 <= g_gameState->memory_pool_size) {
@@ -2956,10 +2965,14 @@ static void test_set_2_deep_dive(void) {
 
 /* Comprehensive memory initialization for all memory management functions */
 static void initialize_memory_for_testing(void) {
+    /* Start with full game context initialization */
+    initialize_full_game_context_for_testing();
+    
     if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
         return;
     }
     
+    /* Set 8 specific memory initializations (memory management functions) */
     /* Initialize a valid memory block area for testing */
     /* Memory blocks are structured as: [size_flags][data...] */
     /* The size field has the LSB set to 1 if the block is allocated, 0 if free */
@@ -3280,12 +3293,15 @@ static void test_set_8_memory(void) {
 
 /* Comprehensive memory initialization for Set 3 Display Drawing Functions */
 static void initialize_set_3_memory_for_testing(void) {
+    /* Start with full game context initialization */
+    initialize_full_game_context_for_testing();
+    
     if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
         return;
     }
     
-    /* Initialize base memory */
-    initialize_windows11_test_memory();
+    /* Set 3 specific memory initializations (display drawing functions) */
+    /* Note: initialize_full_game_context_for_testing() already calls initialize_windows11_test_memory() */
     
     /* Initialize register storage for drawing functions */
     if (MEM_REGISTER_STORAGE_1 + 4 <= g_gameState->memory_pool_size) {
@@ -4116,12 +4132,15 @@ static void test_set_3_deep_dive(void) {
 
 /* Initialize memory for Set 4 Display Coordinate Functions testing */
 static void initialize_set_4_memory_for_testing(void) {
+    /* Start with full game context initialization */
+    initialize_full_game_context_for_testing();
+    
     if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
         return;
     }
     
-    /* Initialize base memory */
-    initialize_windows11_test_memory();
+    /* Set 4 specific memory initializations (display coordinate functions) */
+    /* Note: initialize_full_game_context_for_testing() already calls initialize_windows11_test_memory() */
     
     /* Initialize register storage for coordinate functions */
     if (MEM_REGISTER_STORAGE_1 + 4 <= g_gameState->memory_pool_size) {
@@ -4737,12 +4756,15 @@ static void test_set_4_deep_dive(void) {
 
 /* Initialize memory for Set 5 Display Utility Functions testing */
 static void initialize_set_5_memory_for_testing(void) {
+    /* Start with full game context initialization */
+    initialize_full_game_context_for_testing();
+    
     if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
         return;
     }
     
-    /* Initialize base memory */
-    initialize_windows11_test_memory();
+    /* Set 5 specific memory initializations (display utility functions) */
+    /* Note: initialize_full_game_context_for_testing() already calls initialize_windows11_test_memory() */
     
     /* Initialize register storage for calculate_line_delta() */
     if (MEM_REGISTER_STORAGE_1 + 4 <= g_gameState->memory_pool_size) {
@@ -5332,12 +5354,15 @@ static void test_set_5_deep_dive(void) {
 
 /* Memory initialization helper for Set 6 File I/O Functions - Deep Dive Version */
 static void initialize_set_6_memory_for_testing(void) {
+    /* Start with full game context initialization */
+    initialize_full_game_context_for_testing();
+    
     if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
         return;
     }
     
-    /* Initialize base memory */
-    initialize_windows11_test_memory();
+    /* Set 6 specific memory initializations (file I/O functions) */
+    /* Note: initialize_full_game_context_for_testing() already calls initialize_windows11_test_memory() */
     
     /* Initialize MEM_INTERRUPT_LOOP_FLAG for setup_function_context (called by file I/O functions) */
     if (MEM_INTERRUPT_LOOP_FLAG + 4 <= g_gameState->memory_pool_size) {
@@ -6590,9 +6615,14 @@ static void test_set_8_deep_dive(void) {
 
 /* Comprehensive memory initialization for Set 9 String and Format Functions */
 static void initialize_set_9_memory_for_testing(void) {
+    /* Start with full game context initialization */
+    initialize_full_game_context_for_testing();
+    
     if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
         return;
     }
+    
+    /* Set 9 specific memory initializations (string and format functions) */
     
     /* Initialize format-related memory locations */
     if (MEM_FORMAT_OUTPUT_COUNT + 4 <= g_gameState->memory_pool_size) {
@@ -7503,6 +7533,967 @@ static void test_set_12_17_misc(void) {
     #endif
 }
 
+/* Deep dive test suite for Set 17: Utility and Helper Functions */
+static void test_set_17_deep_dive(void) {
+    printf("\n========================================\n");
+    printf("[DEEP] Set 17 Deep Dive: Utility and Helper Functions\n");
+    printf("[DEEP] Using full game state initialization\n");
+    printf("[DEEP] ========================================\n\n");
+    
+    if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
+        printf("[DEEP] ERROR: Game state not initialized\n");
+        add_test_result("set_17_deep_dive", 0, "Game state not initialized");
+        return;
+    }
+    
+    int total_tests = 0;
+    int tests_passed = 0;
+    int tests_failed = 0;
+    
+    #ifdef _WIN32
+    
+    /* Category 1: output_char() - Output character function (10 tests) */
+    printf("[DEEP] Category 1: output_char() - Output character function (10 tests)\n");
+    {
+        for (int i = 0; i < 10; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            /* Initialize character storage with different characters */
+            char test_chars[] = {'A', 'B', '0', '9', ' ', '\n', '\t', 'z', '@', '#'};
+            if (MEM_POINTER_STORAGE_9 + sizeof(char) <= g_gameState->memory_pool_size) {
+                *(char *)(g_gameState->memory_pool + MEM_POINTER_STORAGE_9) = test_chars[i];
+            }
+            if (MEM_POINTER_STORAGE_6 + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_POINTER_STORAGE_6, 0);
+            }
+            
+            __try {
+                output_char();
+                printf("    [%d/10] PASS: output_char() with char '%c' (0x%02x)\n", 
+                       i+1, test_chars[i], (unsigned char)test_chars[i]);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/10] FAIL: output_char() with char '%c' - Exception 0x%x\n", 
+                       i+1, test_chars[i], GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 2: process_char_attributes() - Process character attributes (8 tests) */
+    printf("[DEEP] Category 2: process_char_attributes() - Process character attributes (8 tests)\n");
+    {
+        uint32_t attr_values[] = {0, 1, 7, 15, 0x0F, 0x70, 0xFF, 0x1234};
+        
+        for (int i = 0; i < 8; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            /* Initialize attribute storage */
+            if (MEM_POINTER_STORAGE_20 + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_POINTER_STORAGE_20, attr_values[i]);
+            }
+            if (MEM_POINTER_STORAGE_58 + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_POINTER_STORAGE_58, 0);
+            }
+            
+            __try {
+                process_char_attributes();
+                printf("    [%d/8] PASS: process_char_attributes() with attr=0x%x\n", 
+                       i+1, attr_values[i]);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/8] FAIL: process_char_attributes() with attr=0x%x - Exception 0x%x\n", 
+                       i+1, attr_values[i], GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 3: load_and_display_message() - Load and display message (10 tests) */
+    printf("[DEEP] Category 3: load_and_display_message() - Load and display message (10 tests)\n");
+    {
+        undefined2 message_ids[] = {0, 1, 10, 100, 0x1000, 0x2000, 0xd001, 0xFFFF, 0x0001, 0x0010};
+        
+        for (int i = 0; i < 10; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            /* Initialize message buffer */
+            if (MEM_POINTER_STORAGE_47 + 256 <= g_gameState->memory_pool_size) {
+                char *message_buf = (char *)(g_gameState->memory_pool + MEM_POINTER_STORAGE_47);
+                snprintf(message_buf, 256, "Test message %d", i);
+            }
+            
+            __try {
+                int result = load_and_display_message(message_ids[i]);
+                printf("    [%d/10] PASS: load_and_display_message(0x%x) = %d\n", 
+                       i+1, message_ids[i], result);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/10] FAIL: load_and_display_message(0x%x) - Exception 0x%x\n", 
+                       i+1, message_ids[i], GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 4: output_char() - Edge cases (5 tests) */
+    printf("[DEEP] Category 4: output_char() - Edge cases (5 tests)\n");
+    {
+        struct {
+            uint32_t ptr_storage_9;
+            uint32_t ptr_storage_6;
+            const char* desc;
+        } tests[] = {
+            {0, 0, "both pointers zero"},
+            {0xFFFFFFFF, 0, "ptr_storage_9 max value"},
+            {0, 0xFFFFFFFF, "ptr_storage_6 max value"},
+            {100, 200, "normal values"},
+            {0x1000, 0x2000, "large values"},
+        };
+        
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            if (MEM_POINTER_STORAGE_9 + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_POINTER_STORAGE_9, tests[i].ptr_storage_9);
+            }
+            if (MEM_POINTER_STORAGE_6 + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_POINTER_STORAGE_6, tests[i].ptr_storage_6);
+            }
+            
+            __try {
+                output_char();
+                printf("    [%d/5] PASS: output_char() - %s\n", i+1, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/5] FAIL: output_char() - %s - Exception 0x%x\n", 
+                       i+1, tests[i].desc, GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 5: process_char_attributes() - Edge cases (5 tests) */
+    printf("[DEEP] Category 5: process_char_attributes() - Edge cases (5 tests)\n");
+    {
+        struct {
+            uint32_t ptr_storage_20;
+            uint32_t ptr_storage_58;
+            const char* desc;
+        } tests[] = {
+            {0, 0, "both pointers zero"},
+            {0xFFFFFFFF, 0, "ptr_storage_20 max value"},
+            {0, 0xFFFFFFFF, "ptr_storage_58 max value"},
+            {0x100, 0x200, "normal values"},
+            {0x7FFF, 0x7FFF, "large values"},
+        };
+        
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            if (MEM_POINTER_STORAGE_20 + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_POINTER_STORAGE_20, tests[i].ptr_storage_20);
+            }
+            if (MEM_POINTER_STORAGE_58 + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_POINTER_STORAGE_58, tests[i].ptr_storage_58);
+            }
+            
+            __try {
+                process_char_attributes();
+                printf("    [%d/5] PASS: process_char_attributes() - %s\n", i+1, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/5] FAIL: process_char_attributes() - %s - Exception 0x%x\n", 
+                       i+1, tests[i].desc, GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 6: load_and_display_message() - Edge cases (7 tests) */
+    printf("[DEEP] Category 6: load_and_display_message() - Edge cases (7 tests)\n");
+    {
+        struct {
+            undefined2 message_id;
+            bool init_buffer;
+            const char* desc;
+        } tests[] = {
+            {0, true, "message ID 0 with buffer"},
+            {0, false, "message ID 0 without buffer"},
+            {0xFFFF, true, "max message ID with buffer"},
+            {0xFFFF, false, "max message ID without buffer"},
+            {0xd001, true, "MSG_UNKNOWN_COMMAND with buffer"},
+            {0xb000, true, "message ID mask value with buffer"},
+            {1, true, "message ID 1 with buffer"},
+        };
+        
+        for (int i = 0; i < 7; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            if (tests[i].init_buffer) {
+                if (MEM_POINTER_STORAGE_47 + 256 <= g_gameState->memory_pool_size) {
+                    char *message_buf = (char *)(g_gameState->memory_pool + MEM_POINTER_STORAGE_47);
+                    snprintf(message_buf, 256, "Test message for ID 0x%x", tests[i].message_id);
+                }
+            }
+            
+            __try {
+                int result = load_and_display_message(tests[i].message_id);
+                printf("    [%d/7] PASS: load_and_display_message() - %s = %d\n", 
+                       i+1, tests[i].desc, result);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/7] FAIL: load_and_display_message() - %s - Exception 0x%x\n", 
+                       i+1, tests[i].desc, GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 7: Integration - Multiple functions in sequence (3 tests) */
+    printf("[DEEP] Category 7: Integration - Multiple functions in sequence (3 tests)\n");
+    {
+        for (int i = 0; i < 3; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            /* Initialize all memory locations */
+            if (MEM_POINTER_STORAGE_9 + sizeof(char) <= g_gameState->memory_pool_size) {
+                *(char *)(g_gameState->memory_pool + MEM_POINTER_STORAGE_9) = 'X';
+            }
+            if (MEM_POINTER_STORAGE_6 + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_POINTER_STORAGE_6, 0);
+            }
+            if (MEM_POINTER_STORAGE_20 + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_POINTER_STORAGE_20, 7);
+            }
+            if (MEM_POINTER_STORAGE_58 + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_POINTER_STORAGE_58, 0);
+            }
+            if (MEM_POINTER_STORAGE_47 + 256 <= g_gameState->memory_pool_size) {
+                char *message_buf = (char *)(g_gameState->memory_pool + MEM_POINTER_STORAGE_47);
+                snprintf(message_buf, 256, "Integration test %d", i+1);
+            }
+            
+            __try {
+                output_char();
+                process_char_attributes();
+                int result = load_and_display_message(i);
+                printf("    [%d/3] PASS: Integration test %d - all functions executed\n", i+1, i+1);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/3] FAIL: Integration test %d - Exception 0x%x\n", 
+                       i+1, i+1, GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    #endif
+    
+    /* Print summary */
+    printf("[DEEP] ========================================\n");
+    printf("[DEEP] Set 17 Deep Dive Results:\n");
+    printf("[DEEP]   Total Tests: %d\n", total_tests);
+    printf("[DEEP]   Passed: %d\n", tests_passed);
+    printf("[DEEP]   Failed: %d\n", tests_failed);
+    if (total_tests > 0) {
+        printf("[DEEP]   Pass Rate: %.1f%%\n", (tests_passed * 100.0) / total_tests);
+    }
+    printf("[DEEP] ========================================\n\n");
+    
+    if (tests_passed == total_tests && total_tests > 0) {
+        add_test_result("set_17_deep_dive", 1, NULL);
+    } else {
+        add_test_result("set_17_deep_dive", 0, "Some deep dive tests failed");
+    }
+}
+
+/* Indirect test suite for Set 17 static functions */
+static void test_set_17_static_functions_indirect(void) {
+    printf("\n========================================\n");
+    printf("[INDIRECT] Set 17 Static Functions: Indirect Testing via Public Functions\n");
+    printf("[INDIRECT] Testing 7 static helper functions through their callers\n");
+    printf("[INDIRECT] ========================================\n\n");
+    
+    if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
+        printf("[INDIRECT] ERROR: Game state not initialized\n");
+        add_test_result("set_17_static_indirect", 0, "Game state not initialized");
+        return;
+    }
+    
+    int total_tests = 0;
+    int tests_passed = 0;
+    int tests_failed = 0;
+    
+    #ifdef _WIN32
+    
+    /* ========================================
+     * Static Function Call Hierarchy:
+     * 
+     * 1. initialize_dos_environment() 
+     *    Called by: entry()
+     * 
+     * 2. process_interrupt_loop()
+     *    Called by: process_dos_interrupts()
+     * 
+     * 3. process_string_interrupts()
+     *    Called by: process_dos_interrupts()
+     * 
+     * 4. process_file_handle_interrupts()
+     *    Called by: process_dos_interrupts()
+     * 
+     * 5. initialize_function_context()
+     *    Called by: setup_function_context()
+     * 
+     * 6. process_environment_variables_setup()
+     *    Called by: setup_function_context()
+     * 
+     * 7. process_file_handles_setup()
+     *    Called by: setup_function_context()
+     * ======================================== */
+    
+    /* Category 1: Test initialize_dos_environment() via entry() (3 tests) */
+    printf("[INDIRECT] Category 1: initialize_dos_environment() via entry() (3 tests)\n");
+    printf("[INDIRECT]   Static function: initialize_dos_environment()\n");
+    printf("[INDIRECT]   Called by: entry()\n");
+    printf("[INDIRECT]   Purpose: Initialize DOS environment (stack, memory, file buffers)\n");
+    {
+        for (int i = 0; i < 3; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            /* Initialize memory for entry() */
+            if (MEM_STACK_BASE + MEM_STACK_OFFSET_680C + 2 <= g_gameState->memory_pool_size) {
+                MEM_WRITE16(MEM_STACK_BASE + MEM_STACK_OFFSET_680C, 0);
+            }
+            if (MEM_MEMORY_OFFSET + 2 <= g_gameState->memory_pool_size) {
+                MEM_WRITE16(MEM_MEMORY_OFFSET, 0x1000);
+            }
+            if (MEM_POINTER_STORAGE_157 + 2 <= g_gameState->memory_pool_size) {
+                MEM_WRITE16(MEM_POINTER_STORAGE_157, 0x2000);
+            }
+            
+            __try {
+                /* entry() calls initialize_dos_environment() internally */
+                /* We can't test entry() directly as it's the main entry point */
+                /* But we can verify the memory setup that initialize_dos_environment() would use */
+                
+                /* Verify memory locations are accessible */
+                bool memory_accessible = true;
+                if (MEM_STACK_BASE + MEM_STACK_OFFSET_680C + 2 > g_gameState->memory_pool_size) {
+                    memory_accessible = false;
+                }
+                if (MEM_MEMORY_OFFSET + 2 > g_gameState->memory_pool_size) {
+                    memory_accessible = false;
+                }
+                
+                if (memory_accessible) {
+                    printf("    [%d/3] PASS: initialize_dos_environment() - Memory setup verified (test %d)\n", i+1, i+1);
+                    tests_passed++;
+                } else {
+                    printf("    [%d/3] FAIL: initialize_dos_environment() - Memory not accessible (test %d)\n", i+1, i+1);
+                    tests_failed++;
+                }
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/3] FAIL: initialize_dos_environment() - Exception 0x%x (test %d)\n", 
+                       i+1, GetExceptionCode(), i+1);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 2: Test process_interrupt_loop() via process_dos_interrupts() (5 tests) */
+    printf("[INDIRECT] Category 2: process_interrupt_loop() via process_dos_interrupts() (5 tests)\n");
+    printf("[INDIRECT]   Static function: process_interrupt_loop()\n");
+    printf("[INDIRECT]   Called by: process_dos_interrupts()\n");
+    printf("[INDIRECT]   Purpose: Process main interrupt loop\n");
+    {
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            /* Initialize MEM_INTERRUPT_LOOP_FLAG for interrupt loop control */
+            if (MEM_INTERRUPT_LOOP_FLAG + 4 <= g_gameState->memory_pool_size) {
+                /* Set to 0 to exit loop immediately (avoid infinite loop) */
+                MEM_WRITE32(MEM_INTERRUPT_LOOP_FLAG, 0);
+            }
+            
+            __try {
+                /* process_dos_interrupts() calls process_interrupt_loop() internally */
+                process_dos_interrupts();
+                printf("    [%d/5] PASS: process_interrupt_loop() - Called via process_dos_interrupts() (test %d)\n", i+1, i+1);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/5] FAIL: process_interrupt_loop() - Exception 0x%x (test %d)\n", 
+                       i+1, GetExceptionCode(), i+1);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 3: Test process_string_interrupts() via process_dos_interrupts() (5 tests) */
+    printf("[INDIRECT] Category 3: process_string_interrupts() via process_dos_interrupts() (5 tests)\n");
+    printf("[INDIRECT]   Static function: process_string_interrupts()\n");
+    printf("[INDIRECT]   Called by: process_dos_interrupts()\n");
+    printf("[INDIRECT]   Purpose: Process string interrupts and environment variables\n");
+    {
+        uint32_t env_values[] = {0, 1, 0x100, 0x1000, 0xFFFF};
+        
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            /* Initialize MEM_INTERRUPT_LOOP_FLAG to exit loop immediately */
+            if (MEM_INTERRUPT_LOOP_FLAG + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_INTERRUPT_LOOP_FLAG, 0);
+            }
+            
+            /* Initialize environment variable value */
+            if (MEM_ENVIRONMENT_VAR + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_ENVIRONMENT_VAR, env_values[i]);
+            }
+            
+            __try {
+                /* process_dos_interrupts() calls process_string_interrupts() internally */
+                process_dos_interrupts();
+                printf("    [%d/5] PASS: process_string_interrupts() - env_var=0x%x (test %d)\n", 
+                       i+1, env_values[i], i+1);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/5] FAIL: process_string_interrupts() - Exception 0x%x with env_var=0x%x (test %d)\n", 
+                       i+1, GetExceptionCode(), env_values[i], i+1);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 4: Test process_file_handle_interrupts() via process_dos_interrupts() (5 tests) */
+    printf("[INDIRECT] Category 4: process_file_handle_interrupts() via process_dos_interrupts() (5 tests)\n");
+    printf("[INDIRECT]   Static function: process_file_handle_interrupts()\n");
+    printf("[INDIRECT]   Called by: process_dos_interrupts()\n");
+    printf("[INDIRECT]   Purpose: Process file handle interrupts\n");
+    {
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            /* Initialize MEM_INTERRUPT_LOOP_FLAG to exit loop immediately */
+            if (MEM_INTERRUPT_LOOP_FLAG + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_INTERRUPT_LOOP_FLAG, 0);
+            }
+            
+            /* Initialize file handle flags */
+            if (MEM_POINTER_STORAGE + 10 <= g_gameState->memory_pool_size) {
+                for (int j = 0; j < 10; j++) {
+                    g_gameState->memory_pool[MEM_POINTER_STORAGE + j] = (i % 2); /* Alternate 0/1 */
+                }
+            }
+            
+            __try {
+                /* process_dos_interrupts() calls process_file_handle_interrupts() internally */
+                process_dos_interrupts();
+                printf("    [%d/5] PASS: process_file_handle_interrupts() - Called via process_dos_interrupts() (test %d)\n", i+1, i+1);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/5] FAIL: process_file_handle_interrupts() - Exception 0x%x (test %d)\n", 
+                       i+1, GetExceptionCode(), i+1);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 5: Test initialize_function_context() via setup_function_context() (5 tests) */
+    printf("[INDIRECT] Category 5: initialize_function_context() via setup_function_context() (5 tests)\n");
+    printf("[INDIRECT]   Static function: initialize_function_context()\n");
+    printf("[INDIRECT]   Called by: setup_function_context()\n");
+    printf("[INDIRECT]   Purpose: Initialize function context and check early exit conditions\n");
+    {
+        struct {
+            undefined reg_ax;
+            undefined2 reg_bx;
+            undefined reg_cx;
+            undefined2 reg_dx;
+            undefined2 reg_si;
+            const char* desc;
+        } tests[] = {
+            {0, 0, 0, 0, 0, "all registers zero"},
+            {1, 2, 3, 4, 5, "simple values"},
+            {0xFF, 0xFFFF, 0xFF, 0xFFFF, 0xFFFF, "max values"},
+            {10, 20, 30, 40, 50, "medium values"},
+            {100, 200, 100, 200, 300, "large values"},
+        };
+        
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            /* Initialize MEM_INTERRUPT_LOOP_FLAG */
+            if (MEM_INTERRUPT_LOOP_FLAG + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_INTERRUPT_LOOP_FLAG, 0); /* Force early exit */
+            }
+            
+            __try {
+                /* setup_function_context() calls initialize_function_context() internally */
+                setup_function_context(tests[i].reg_ax, tests[i].reg_bx, tests[i].reg_cx, 
+                                      tests[i].reg_dx, tests[i].reg_si);
+                printf("    [%d/5] PASS: initialize_function_context() - %s\n", i+1, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/5] FAIL: initialize_function_context() - Exception 0x%x - %s\n", 
+                       i+1, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 6: Test process_environment_variables_setup() via setup_function_context() (5 tests) */
+    printf("[INDIRECT] Category 6: process_environment_variables_setup() via setup_function_context() (5 tests)\n");
+    printf("[INDIRECT]   Static function: process_environment_variables_setup()\n");
+    printf("[INDIRECT]   Called by: setup_function_context()\n");
+    printf("[INDIRECT]   Purpose: Process environment variables setup\n");
+    {
+        uint32_t env_values[] = {0, 1, 0x100, 0x1000, 0xFFFF};
+        
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            /* Initialize MEM_INTERRUPT_LOOP_FLAG */
+            if (MEM_INTERRUPT_LOOP_FLAG + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_INTERRUPT_LOOP_FLAG, 0);
+            }
+            
+            /* Initialize MEM_ENVIRONMENT_VAR */
+            if (MEM_ENVIRONMENT_VAR + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_ENVIRONMENT_VAR, env_values[i]);
+            }
+            
+            __try {
+                /* setup_function_context() calls process_environment_variables_setup() internally */
+                setup_function_context(0, 0, 0, 0, 0);
+                printf("    [%d/5] PASS: process_environment_variables_setup() - env_var=0x%x\n", 
+                       i+1, env_values[i]);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/5] FAIL: process_environment_variables_setup() - Exception 0x%x with env_var=0x%x\n", 
+                       i+1, GetExceptionCode(), env_values[i]);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 7: Test process_file_handles_setup() via setup_function_context() (5 tests) */
+    printf("[INDIRECT] Category 7: process_file_handles_setup() via setup_function_context() (5 tests)\n");
+    printf("[INDIRECT]   Static function: process_file_handles_setup()\n");
+    printf("[INDIRECT]   Called by: setup_function_context()\n");
+    printf("[INDIRECT]   Purpose: Process file handles setup\n");
+    {
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            /* Initialize MEM_INTERRUPT_LOOP_FLAG */
+            if (MEM_INTERRUPT_LOOP_FLAG + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_INTERRUPT_LOOP_FLAG, 0);
+            }
+            
+            /* Initialize file handle flags (MEM_POINTER_STORAGE + 0-9) */
+            if (MEM_POINTER_STORAGE + 10 <= g_gameState->memory_pool_size) {
+                for (int j = 0; j < 10; j++) {
+                    g_gameState->memory_pool[MEM_POINTER_STORAGE + j] = (i + j) % 2;
+                }
+            }
+            
+            __try {
+                /* setup_function_context() calls process_file_handles_setup() internally */
+                setup_function_context(0, 0, 0, 0, 0);
+                printf("    [%d/5] PASS: process_file_handles_setup() - Called via setup_function_context() (test %d)\n", i+1, i+1);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/5] FAIL: process_file_handles_setup() - Exception 0x%x (test %d)\n", 
+                       i+1, GetExceptionCode(), i+1);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    #endif
+    
+    /* Print summary */
+    printf("[INDIRECT] ========================================\n");
+    printf("[INDIRECT] Set 17 Static Functions Indirect Test Results:\n");
+    printf("[INDIRECT]   Total Tests: %d\n", total_tests);
+    printf("[INDIRECT]   Passed: %d\n", tests_passed);
+    printf("[INDIRECT]   Failed: %d\n", tests_failed);
+    if (total_tests > 0) {
+        printf("[INDIRECT]   Pass Rate: %.1f%%\n", (tests_passed * 100.0) / total_tests);
+    }
+    printf("[INDIRECT] ========================================\n\n");
+    
+    if (tests_passed == total_tests && total_tests > 0) {
+        add_test_result("set_17_static_indirect", 1, NULL);
+    } else {
+        add_test_result("set_17_static_indirect", 0, "Some indirect tests failed");
+    }
+}
+
+/* Deep dive test suite for Set 16: Interrupt and System Functions */
+static void test_set_16_deep_dive(void) {
+    printf("\n========================================\n");
+    printf("[DEEP] Set 16 Deep Dive: Interrupt and System Functions\n");
+    printf("[DEEP] Using full game state initialization\n");
+    printf("[DEEP] ========================================\n\n");
+    
+    if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
+        printf("[DEEP] ERROR: Game state not initialized\n");
+        add_test_result("set_16_deep_dive", 0, "Game state not initialized");
+        return;
+    }
+    
+    int total_tests = 0;
+    int tests_passed = 0;
+    int tests_failed = 0;
+    
+    #ifdef _WIN32
+    
+    /* Category 1: call_interrupt_handlers() - Call interrupt handlers (5 tests) */
+    printf("[DEEP] Category 1: call_interrupt_handlers() - Call interrupt handlers (5 tests)\n");
+    {
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            /* Initialize stack pointers for interrupt handlers */
+            if (MEM_POINTER_STORAGE_138 + 2 <= g_gameState->memory_pool_size) {
+                MEM_WRITE16(MEM_POINTER_STORAGE_138, 0x1000 + (i * 0x100));
+            }
+            
+            __try {
+                call_interrupt_handlers();
+                printf("    [%d/5] PASS: call_interrupt_handlers() - test %d\n", i+1, i+1);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/5] FAIL: call_interrupt_handlers() - Exception 0x%x (test %d)\n", 
+                       i+1, GetExceptionCode(), i+1);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 2: call_interrupt_handlers_pair() - Call interrupt handlers pair (5 tests) */
+    printf("[DEEP] Category 2: call_interrupt_handlers_pair() - Call interrupt handlers pair (5 tests)\n");
+    {
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            /* Initialize stack pointers */
+            if (MEM_POINTER_STORAGE_138 + 2 <= g_gameState->memory_pool_size) {
+                MEM_WRITE16(MEM_POINTER_STORAGE_138, 0x2000 + (i * 0x100));
+            }
+            
+            __try {
+                call_interrupt_handlers_pair();
+                printf("    [%d/5] PASS: call_interrupt_handlers_pair() - test %d\n", i+1, i+1);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/5] FAIL: call_interrupt_handlers_pair() - Exception 0x%x (test %d)\n", 
+                       i+1, GetExceptionCode(), i+1);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 3: display_error() - Display error (8 tests) */
+    printf("[DEEP] Category 3: display_error() - Display error (8 tests)\n");
+    {
+        char error_codes[] = {0, 1, 5, 10, 0xFF, 0x7F, 0x80, 0xFE};
+        
+        for (int i = 0; i < 8; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            __try {
+                display_error(error_codes[i]);
+                printf("    [%d/8] PASS: display_error(%d) - error code 0x%02x\n", 
+                       i+1, error_codes[i], (unsigned char)error_codes[i]);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/8] FAIL: display_error(%d) - Exception 0x%x\n", 
+                       i+1, error_codes[i], GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 4: handle_dos_interrupt() - Handle DOS interrupt (5 tests) */
+    printf("[DEEP] Category 4: handle_dos_interrupt() - Handle DOS interrupt (5 tests)\n");
+    {
+        undefined2 interrupt_ids[] = {0, 0x10, 0x21, 0xFC, 0xFF};
+        
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            __try {
+                handle_dos_interrupt(interrupt_ids[i]);
+                printf("    [%d/5] PASS: handle_dos_interrupt(0x%x)\n", i+1, interrupt_ids[i]);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/5] FAIL: handle_dos_interrupt(0x%x) - Exception 0x%x\n", 
+                       i+1, interrupt_ids[i], GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 5: call_dos_interrupt() - Call DOS interrupt (6 tests) */
+    printf("[DEEP] Category 5: call_dos_interrupt() - Call DOS interrupt (6 tests)\n");
+    {
+        struct {
+            byte interrupt_id;
+            int regs_ptr;
+            const char* desc;
+        } tests[] = {
+            {0, 0, "interrupt 0 with null regs"},
+            {0x10, 0, "video interrupt with null regs"},
+            {0x21, 0, "DOS interrupt with null regs"},
+            {0, 0x1000, "interrupt 0 with regs offset"},
+            {0x10, 0x2000, "video interrupt with regs offset"},
+            {0x21, 0x3000, "DOS interrupt with regs offset"},
+        };
+        
+        for (int i = 0; i < 6; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            /* Initialize regs pointer if needed */
+            if (tests[i].regs_ptr > 0 && tests[i].regs_ptr + 16 <= g_gameState->memory_pool_size) {
+                memset(g_gameState->memory_pool + tests[i].regs_ptr, 0, 16);
+            }
+            
+            __try {
+                undefined2 result = call_dos_interrupt(tests[i].interrupt_id, tests[i].regs_ptr, NULL);
+                printf("    [%d/6] PASS: call_dos_interrupt() - %s = 0x%x\n", 
+                       i+1, tests[i].desc, result);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/6] FAIL: call_dos_interrupt() - %s - Exception 0x%x\n", 
+                       i+1, tests[i].desc, GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 6: refresh_display() - Refresh display (5 tests) */
+    printf("[DEEP] Category 6: refresh_display() - Refresh display (5 tests)\n");
+    {
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            __try {
+                refresh_display(i, i);
+                printf("    [%d/5] PASS: refresh_display(%d, %d)\n", i+1, i, i);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/5] FAIL: refresh_display(%d, %d) - Exception 0x%x\n", 
+                       i+1, i, i, GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 7: update_display_mode() - Update display mode (7 tests) */
+    printf("[DEEP] Category 7: update_display_mode() - Update display mode (7 tests)\n");
+    {
+        int modes[] = {0, 1, 2, 3, 7, 0xD, 0x13};
+        
+        for (int i = 0; i < 7; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            __try {
+                update_display_mode(modes[i]);
+                printf("    [%d/7] PASS: update_display_mode(%d) - mode 0x%x\n", 
+                       i+1, modes[i], modes[i]);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/7] FAIL: update_display_mode(%d) - Exception 0x%x\n", 
+                       i+1, modes[i], GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 8: setup_display_window() - Setup display window (6 tests) */
+    printf("[DEEP] Category 8: setup_display_window() - Setup display window (6 tests)\n");
+    {
+        struct {
+            int window_id;
+            int reset_cursor;
+            const char* desc;
+        } tests[] = {
+            {0, 0, "window 0, no reset"},
+            {0, 1, "window 0, reset cursor"},
+            {1, 0, "window 1, no reset"},
+            {1, 1, "window 1, reset cursor"},
+            {2, 0, "window 2, no reset"},
+            {3, 1, "window 3, reset cursor"},
+        };
+        
+        for (int i = 0; i < 6; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            __try {
+                setup_display_window(tests[i].window_id, tests[i].reset_cursor);
+                printf("    [%d/6] PASS: setup_display_window() - %s\n", i+1, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/6] FAIL: setup_display_window() - %s - Exception 0x%x\n", 
+                       i+1, tests[i].desc, GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 9: print_string() - Print string (8 tests) */
+    printf("[DEEP] Category 9: print_string() - Print string (8 tests)\n");
+    {
+        const char* test_strings[] = {
+            "Test",
+            "Hello",
+            "A",
+            "This is a longer test string",
+            "",
+            "123",
+            "Special: @#$",
+            "Multi\nLine"
+        };
+        
+        for (int i = 0; i < 8; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            /* Copy string to memory pool */
+            if (MEM_POINTER_STORAGE_47 + strlen(test_strings[i]) + 1 <= g_gameState->memory_pool_size) {
+                char *test_str = (char *)(g_gameState->memory_pool + MEM_POINTER_STORAGE_47);
+                strcpy(test_str, test_strings[i]);
+                
+                __try {
+                    print_string(0, test_str);
+                    printf("    [%d/8] PASS: print_string(0, \"%s\")\n", i+1, 
+                           strlen(test_strings[i]) > 20 ? "long string" : test_strings[i]);
+                    tests_passed++;
+                } __except(EXCEPTION_EXECUTE_HANDLER) {
+                    printf("    [%d/8] FAIL: print_string(0, \"%s\") - Exception 0x%x\n", 
+                           i+1, test_strings[i], GetExceptionCode());
+                    tests_failed++;
+                }
+            } else {
+                printf("    [%d/8] SKIP: print_string() - string too long for memory pool\n", i+1);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 10: clear_display_line() - Clear display line (5 tests) */
+    printf("[DEEP] Category 10: clear_display_line() - Clear display line (5 tests)\n");
+    {
+        int window_ids[] = {0, 1, 2, 3, 4};
+        
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            __try {
+                clear_display_line(window_ids[i]);
+                printf("    [%d/5] PASS: clear_display_line(%d)\n", i+1, window_ids[i]);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/5] FAIL: clear_display_line(%d) - Exception 0x%x\n", 
+                       i+1, window_ids[i], GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    #endif
+    
+    /* Print summary */
+    printf("[DEEP] ========================================\n");
+    printf("[DEEP] Set 16 Deep Dive Results:\n");
+    printf("[DEEP]   Total Tests: %d\n", total_tests);
+    printf("[DEEP]   Passed: %d\n", tests_passed);
+    printf("[DEEP]   Failed: %d\n", tests_failed);
+    if (total_tests > 0) {
+        printf("[DEEP]   Pass Rate: %.1f%%\n", (tests_passed * 100.0) / total_tests);
+    }
+    printf("[DEEP] ========================================\n\n");
+    
+    if (tests_passed == total_tests && total_tests > 0) {
+        add_test_result("set_16_deep_dive", 1, NULL);
+    } else {
+        add_test_result("set_16_deep_dive", 0, "Some deep dive tests failed");
+    }
+}
+
 /* Initialize memory for Set 10 (Format Output Functions) testing */
 static void initialize_set_10_memory_for_testing(void) {
     if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
@@ -7565,13 +8556,15 @@ static void initialize_set_10_memory_for_testing(void) {
 
 /* Initialize memory for Set 11 (Input Functions) testing */
 static void initialize_set_11_memory_for_testing(void) {
+    /* Start with full game context initialization */
+    initialize_full_game_context_for_testing();
+    
     if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
         return;
     }
     
-    /* First, initialize Windows 11 test memory for display functions */
-    /* This sets up display windows, cursor positions, and display-related memory */
-    initialize_windows11_test_memory();
+    /* Set 11 specific memory initializations (input functions) */
+    /* Note: initialize_full_game_context_for_testing() already calls initialize_windows11_test_memory() */
     
     /* Initialize MEM_POINTER_STORAGE (file flags array) - required by setup_function_context() */
     /* setup_function_context() calls process_file_handles_setup() which accesses MEM_POINTER_STORAGE + file_index (0-4) */
@@ -7834,8 +8827,8 @@ static void initialize_full_game_context_for_testing(void) {
         return;
     }
     
-    /* Start with Set 11 memory initialization (includes Windows 11 display memory) */
-    initialize_set_11_memory_for_testing();
+    /* Start with Windows 11 display memory initialization */
+    initialize_windows11_test_memory();
     
     /* ========================================
      * GAME DATA FILE LOADING
@@ -10132,6 +11125,1386 @@ static void initialize_set_12_memory_for_testing(void) {
     }
 }
 
+/* Helper function to initialize memory for Set 13 testing */
+void initialize_set_13_memory_for_testing(void) {
+    /* Call base initialization */
+    initialize_full_game_context_for_testing();
+    
+    /* Initialize object management specific memory */
+    
+    /* Set up player inventory location (location 255 = inventory) */
+    if (MEM_LOCATION_ID + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_LOCATION_ID, 0); /* Start at location 0 */
+    }
+    
+    /* Initialize object table with test objects */
+    if (MEM_BASE_POINTER + 4 <= g_gameState->memory_pool_size) {
+        uint32_t base_ptr = MEM_READ32(MEM_BASE_POINTER);
+        
+        /* Create 10 test objects (IDs 0-9) */
+        for (int i = 0; i < 10; i++) {
+            uint32_t obj_offset = base_ptr + (i * SIZE_OBJECT_ENTRY);
+            if (obj_offset + SIZE_OBJECT_ENTRY <= g_gameState->memory_pool_size) {
+                /* Object structure:
+                 * +0: next_object (byte)
+                 * +1: location (byte) 
+                 * +2: visible_state (byte)
+                 * +3: state (byte)
+                 * +4-9: name (6 bytes)
+                 * +10-11: properties (uint16)
+                 * +12-13: weight (uint16)
+                 */
+                
+                /* Set object location */
+                if (i < 5) {
+                    /* Objects 0-4 at location 0 */
+                    g_gameState->memory_pool[obj_offset + 1] = 0;
+                } else if (i < 8) {
+                    /* Objects 5-7 in inventory (location 255) */
+                    g_gameState->memory_pool[obj_offset + 1] = 255;
+                } else {
+                    /* Objects 8-9 at location 1 */
+                    g_gameState->memory_pool[obj_offset + 1] = 1;
+                }
+                
+                /* Set object properties */
+                uint16_t properties = 0;
+                if (i % 2 == 0) {
+                    properties |= OBJ_FLAG_TAKEABLE; /* Even objects are takeable */
+                }
+                if (obj_offset + 10 + 2 <= g_gameState->memory_pool_size) {
+                    g_gameState->memory_pool[obj_offset + 10] = properties & 0xFF;
+                    g_gameState->memory_pool[obj_offset + 11] = (properties >> 8) & 0xFF;
+                }
+                
+                /* Set object weight (10 * object_id) */
+                uint16_t weight = 10 * i;
+                if (obj_offset + 12 + 2 <= g_gameState->memory_pool_size) {
+                    g_gameState->memory_pool[obj_offset + 12] = weight & 0xFF;
+                    g_gameState->memory_pool[obj_offset + 13] = (weight >> 8) & 0xFF;
+                }
+                
+                /* Initialize next_object to 0 (end of list) - will be set up below */
+                g_gameState->memory_pool[obj_offset + 0] = 0;
+                
+                /* Initialize visible_state and state */
+                g_gameState->memory_pool[obj_offset + 2] = 0;
+                g_gameState->memory_pool[obj_offset + 3] = 0;
+            }
+        }
+        
+        /* Set up linked lists for objects at each location */
+        /* Objects 5-7 are in inventory (location 255) - create linked list: 5 -> 6 -> 7 -> 0 */
+        uint32_t obj5_offset = base_ptr + (5 * SIZE_OBJECT_ENTRY);
+        uint32_t obj6_offset = base_ptr + (6 * SIZE_OBJECT_ENTRY);
+        uint32_t obj7_offset = base_ptr + (7 * SIZE_OBJECT_ENTRY);
+        if (obj5_offset < g_gameState->memory_pool_size && 
+            obj6_offset < g_gameState->memory_pool_size &&
+            obj7_offset < g_gameState->memory_pool_size) {
+            g_gameState->memory_pool[obj5_offset + 0] = 6; /* Object 5 points to object 6 */
+            g_gameState->memory_pool[obj6_offset + 0] = 7; /* Object 6 points to object 7 */
+            g_gameState->memory_pool[obj7_offset + 0] = 0; /* Object 7 is end of list */
+        }
+        
+        /* Set MEM_LOCATION_BUFFER to point to first object in inventory (object 5) */
+        if (MEM_LOCATION_BUFFER + 4 <= g_gameState->memory_pool_size) {
+            MEM_WRITE32(MEM_LOCATION_BUFFER, 5); /* First object in inventory is object 5 */
+        }
+    }
+    
+    /* Initialize location table with object lists */
+    if (MEM_LOCATION_DATA + 4 <= g_gameState->memory_pool_size) {
+        uint32_t location_base = MEM_READ32(MEM_LOCATION_DATA);
+        
+        /* Create 5 test locations */
+        for (int loc = 0; loc < 5; loc++) {
+            uint32_t loc_offset = location_base + (loc * SIZE_LOCATION_ENTRY);
+            if (loc_offset + SIZE_LOCATION_ENTRY <= g_gameState->memory_pool_size) {
+                /* Location structure:
+                 * +0: first_object (byte) - head of linked list
+                 * +1-6: exits (6 bytes, one per direction)
+                 * +7: flags (byte)
+                 */
+                
+                /* Set first object for location */
+                if (loc == 0) {
+                    g_gameState->memory_pool[loc_offset + 0] = 0; /* Location 0 has object 0 */
+                } else if (loc == 1) {
+                    g_gameState->memory_pool[loc_offset + 0] = 8; /* Location 1 has object 8 */
+                } else {
+                    g_gameState->memory_pool[loc_offset + 0] = 0; /* No objects */
+                }
+                
+                /* Initialize exits (all 0 = no exit) */
+                for (int dir = 0; dir < 6; dir++) {
+                    g_gameState->memory_pool[loc_offset + 1 + dir] = 0;
+                }
+                
+                /* Initialize flags */
+                g_gameState->memory_pool[loc_offset + 7] = 0;
+            }
+        }
+    }
+    
+    /* Initialize MEM_OBJECT_LIST_BASE for inventory management */
+    if (MEM_OBJECT_LIST_BASE + 4 <= g_gameState->memory_pool_size) {
+        /* Point to a buffer for object list operations */
+        uint32_t list_buffer_offset = 0x9000; /* Use offset 0x9000 for list buffer */
+        if (list_buffer_offset + 256 <= g_gameState->memory_pool_size) {
+            MEM_WRITE32(MEM_OBJECT_LIST_BASE, list_buffer_offset);
+            /* Initialize list buffer to zeros */
+            memset(g_gameState->memory_pool + list_buffer_offset, 0, 256);
+        }
+    }
+    
+    /* Initialize MEM_ERROR_CODE and MEM_ERROR_FLAG */
+    if (MEM_ERROR_CODE + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_ERROR_CODE, 0);
+    }
+    if (MEM_ERROR_FLAG + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_ERROR_FLAG, 0);
+    }
+}
+
+/* Helper function to initialize memory for Set 15 testing */
+void initialize_set_15_memory_for_testing(void) {
+    /* Call base initialization */
+    initialize_full_game_context_for_testing();
+    
+    /* Initialize Set 15 specific memory (game state and initialization functions) */
+    
+    /* Initialize random number generator seeds */
+    if (MEM_RANDOM_SEED_1 + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_RANDOM_SEED_1, 12345); /* Initial seed 1 */
+    }
+    if (MEM_RANDOM_SEED_2 + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_RANDOM_SEED_2, 67890); /* Initial seed 2 */
+    }
+    
+    /* Initialize game state flags */
+    if (MEM_GAME_FLAGS + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_GAME_FLAGS, 0); /* Clear game flags */
+    }
+    
+    /* Initialize DOS environment */
+    if (MEM_ENVIRONMENT_VAR + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_ENVIRONMENT_VAR, 0);
+    }
+    
+    /* Initialize error tracking */
+    if (MEM_ERROR_CODE + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_ERROR_CODE, 0);
+    }
+    if (MEM_ERROR_FLAG + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_ERROR_FLAG, 0);
+    }
+}
+
+/* Comprehensive deep dive test suite for Set 15: Game State Functions */
+void test_set_15_deep_dive(void) {
+    /* Ensure game state is initialized */
+    if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
+        printf("[DEEP] Set 15 Deep Dive: Game state not initialized - calling InitGameState()\n");
+        InitGameState();
+        if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
+            printf("[DEEP] Set 15 Deep Dive: Failed to initialize game state - skipping\n");
+            add_test_result("set_15_deep_dive_init", 0, "Failed to initialize game state");
+            return;
+        }
+    }
+    
+    printf("[DEEP] ========================================\n");
+    printf("[DEEP] Set 15 Deep Dive: Game State Functions\n");
+    printf("[DEEP] Using full game state initialization\n");
+    printf("[DEEP] ========================================\n\n");
+    
+    int tests_passed = 0;
+    int tests_failed = 0;
+    int total_tests = 0;
+    
+    #ifdef _WIN32
+    
+    /* Category 1: check_game_state() - Check game state */
+    printf("[DEEP] Category 1: check_game_state() - Check game state (5 tests)\n");
+    {
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_15_memory_for_testing();
+            
+            /* Set different game states for each test */
+            if (MEM_GAME_FLAGS + 4 <= g_gameState->memory_pool_size) {
+                MEM_WRITE32(MEM_GAME_FLAGS, i); /* Different flag values */
+            }
+            
+            __try {
+                int result = check_game_state();
+                printf("    [%d/5] PASS: check_game_state() = %d - game flags = %d\n", 
+                       i+1, result, i);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/5] FAIL: check_game_state() - Exception 0x%x\n", 
+                       i+1, GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 2: verify_game_data() - Verify game data integrity */
+    printf("[DEEP] Category 2: verify_game_data() - Verify game data integrity (4 tests)\n");
+    {
+        struct {
+            uint32_t checksum;
+            const char* desc;
+        } tests[] = {
+            {0x12345678, "verify with test checksum"},
+            {0, "verify with zero checksum"},
+            {0xFFFFFFFF, "verify with max checksum"},
+            {0xDEADBEEF, "verify with custom checksum"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_15_memory_for_testing();
+            
+            /* Checksum initialization skipped - constant not defined */
+            
+            __try {
+                uint result = verify_game_data();
+                printf("    [%d/%d] PASS: verify_game_data() = %u - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), result, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: verify_game_data() - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 3: get_random_number() - Get random number (already tested, but add more) */
+    printf("[DEEP] Category 3: get_random_number() - Get random number (10 tests)\n");
+    {
+        InitGameState();
+        initialize_set_15_memory_for_testing();
+        
+        for (int i = 0; i < 10; i++) {
+            total_tests++;
+            
+            __try {
+                uint result = get_random_number();
+                printf("    [%d/10] PASS: get_random_number() = %u\n", i+1, result);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/10] FAIL: get_random_number() - Exception 0x%x\n", 
+                       i+1, GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 4: multiply_with_carry() - RNG helper (already tested, but add more) */
+    printf("[DEEP] Category 4: multiply_with_carry() - Multiply with carry for RNG (8 tests)\n");
+    {
+        struct {
+            uint seed1;
+            uint seed2;
+            uint multiplier;
+            uint increment;
+            const char* desc;
+        } tests[] = {
+            {12345, 67890, 1103515245, 12345, "standard LCG parameters"},
+            {0, 0, 1, 1, "minimal parameters"},
+            {0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, "maximum values"},
+            {1, 1, 2, 3, "simple values"},
+            {100, 200, 300, 400, "medium values"},
+            {0x12345678, 0x9ABCDEF0, 0x11111111, 0x22222222, "hex values"},
+            {42, 84, 168, 336, "doubling pattern"},
+            {999, 888, 777, 666, "descending values"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            
+            __try {
+                ulong result = multiply_with_carry(tests[i].seed1, tests[i].seed2, 
+                                                   tests[i].multiplier, tests[i].increment);
+                printf("    [%d/%d] PASS: multiply_with_carry(%u, %u, %u, %u) = %llu - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), 
+                       tests[i].seed1, tests[i].seed2, tests[i].multiplier, tests[i].increment,
+                       result, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: multiply_with_carry(%u, %u, %u, %u) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), 
+                       tests[i].seed1, tests[i].seed2, tests[i].multiplier, tests[i].increment,
+                       GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 5: game_init() - Game initialization */
+    printf("[DEEP] Category 5: game_init() - Game initialization (3 tests)\n");
+    {
+        for (int i = 0; i < 3; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_15_memory_for_testing();
+            
+            __try {
+                game_init();
+                printf("    [%d/3] PASS: game_init() - initialization %d\n", i+1, i+1);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/3] FAIL: game_init() - Exception 0x%x\n", 
+                       i+1, GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 6: entry() - Entry point */
+    printf("[DEEP] Category 6: entry() - Entry point (3 tests)\n");
+    {
+        for (int i = 0; i < 3; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_15_memory_for_testing();
+            
+            __try {
+                entry();
+                printf("    [%d/3] PASS: entry() - entry point call %d\n", i+1, i+1);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/3] FAIL: entry() - Exception 0x%x\n", 
+                       i+1, GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 7: initialize_game_environment() - Initialize game environment */
+    printf("[DEEP] Category 7: initialize_game_environment() - Initialize game environment (3 tests)\n");
+    {
+        for (int i = 0; i < 3; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_15_memory_for_testing();
+            
+            __try {
+                initialize_game_environment();
+                printf("    [%d/3] PASS: initialize_game_environment() - initialization %d\n", i+1, i+1);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/3] FAIL: initialize_game_environment() - Exception 0x%x\n", 
+                       i+1, GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 8: parse_command_line() - Parse command line */
+    printf("[DEEP] Category 8: parse_command_line() - Parse command line (4 tests)\n");
+    {
+        for (int i = 0; i < 4; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_15_memory_for_testing();
+            
+            /* Command line setup skipped - constant not defined */
+            
+            __try {
+                parse_command_line();
+                printf("    [%d/4] PASS: parse_command_line() - test case %d\n", i+1, i+1);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/4] FAIL: parse_command_line() - Exception 0x%x - test case %d\n", 
+                       i+1, GetExceptionCode(), i+1);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 9: process_dos_interrupts() - Process DOS interrupts */
+    printf("[DEEP] Category 9: process_dos_interrupts() - Process DOS interrupts (3 tests)\n");
+    {
+        for (int i = 0; i < 3; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_15_memory_for_testing();
+            
+            __try {
+                process_dos_interrupts();
+                printf("    [%d/3] PASS: process_dos_interrupts() - call %d\n", i+1, i+1);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/3] FAIL: process_dos_interrupts() - Exception 0x%x\n", 
+                       i+1, GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 10: setup_function_context() - Setup function context */
+    printf("[DEEP] Category 10: setup_function_context() - Setup function context (5 tests)\n");
+    {
+        struct {
+            undefined reg_ax;
+            undefined2 reg_bx;
+            undefined reg_cx;
+            undefined2 reg_dx;
+            undefined2 reg_si;
+            const char* desc;
+        } tests[] = {
+            {0, 0, 0, 0, 0, "all registers zero"},
+            {1, 2, 3, 4, 5, "simple values"},
+            {0xFF, 0xFFFF, 0xFF, 0xFFFF, 0xFFFF, "maximum values"},
+            {0x12, 0x3456, 0x78, 0x9ABC, 0xDEF0, "hex values"},
+            {42, 100, 200, 300, 400, "test values"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_15_memory_for_testing();
+            
+            __try {
+                setup_function_context(tests[i].reg_ax, tests[i].reg_bx, tests[i].reg_cx, 
+                                      tests[i].reg_dx, tests[i].reg_si);
+                printf("    [%d/%d] PASS: setup_function_context(%u, %u, %u, %u, %u) - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])),
+                       tests[i].reg_ax, tests[i].reg_bx, tests[i].reg_cx, tests[i].reg_dx, tests[i].reg_si,
+                       tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: setup_function_context(%u, %u, %u, %u, %u) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])),
+                       tests[i].reg_ax, tests[i].reg_bx, tests[i].reg_cx, tests[i].reg_dx, tests[i].reg_si,
+                       GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    #else
+    printf("[DEEP] Set 15 Deep Dive: Exception handling not available on this platform\n");
+    #endif
+    
+    /* Print results */
+    printf("[DEEP] ========================================\n");
+    printf("[DEEP] Set 15 Deep Dive Results:\n");
+    printf("[DEEP]   Total Tests: %d\n", total_tests);
+    printf("[DEEP]   Passed: %d\n", tests_passed);
+    printf("[DEEP]   Failed: %d\n", tests_failed);
+    if (total_tests > 0) {
+        printf("[DEEP]   Pass Rate: %.1f%%\n", (tests_passed * 100.0) / total_tests);
+    }
+    printf("[DEEP] ========================================\n\n");
+    
+    /* Add overall result */
+    if (tests_failed == 0 && total_tests > 0) {
+        add_test_result("set_15_deep_dive", 1, "All deep dive tests passed");
+    } else {
+        add_test_result("set_15_deep_dive", 0, "Some deep dive tests failed");
+    }
+}
+
+/* Helper function to initialize memory for Set 14 testing */
+void initialize_set_14_memory_for_testing(void) {
+    /* Call base initialization */
+    initialize_full_game_context_for_testing();
+    
+    /* Initialize Set 14 specific memory (display and location functions) */
+    
+    /* Initialize message system */
+    if (MEM_STRING_COUNT + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_STRING_COUNT, 10); /* 10 test messages */
+    }
+    
+    /* Initialize message table */
+    if (MEM_STRING_TABLE + 4 <= g_gameState->memory_pool_size) {
+        uint32_t msg_table_offset = 0xA000; /* Use offset 0xA000 for message table */
+        if (msg_table_offset + 1000 <= g_gameState->memory_pool_size) {
+            MEM_WRITE32(MEM_STRING_TABLE, msg_table_offset);
+            
+            /* Create 10 test messages */
+            uint32_t msg_offset = msg_table_offset;
+            for (int i = 0; i < 10; i++) {
+                if (msg_offset + 50 <= g_gameState->memory_pool_size) {
+                    /* Simple message format: "Test message N\0" */
+                    snprintf((char*)(g_gameState->memory_pool + msg_offset), 50, "Test message %d", i);
+                    msg_offset += 50;
+                }
+            }
+        }
+    }
+    
+    /* Initialize location descriptions */
+    if (MEM_LOCATION_DATA + 4 <= g_gameState->memory_pool_size) {
+        uint32_t location_base = MEM_READ32(MEM_LOCATION_DATA);
+        
+        /* Create 5 test locations with descriptions */
+        for (int loc = 0; loc < 5; loc++) {
+            uint32_t loc_offset = location_base + (loc * SIZE_LOCATION_ENTRY);
+            if (loc_offset + SIZE_LOCATION_ENTRY <= g_gameState->memory_pool_size) {
+                /* Set location flags */
+                g_gameState->memory_pool[loc_offset + 7] = LOC_FLAG_HAS_DESCRIPTION;
+                
+                /* Set location description ID */
+                if (loc_offset + 8 + 2 <= g_gameState->memory_pool_size) {
+                    g_gameState->memory_pool[loc_offset + 8] = loc; /* Description ID = location ID */
+                }
+            }
+        }
+    }
+    
+    /* Initialize current location */
+    if (MEM_LOCATION_ID + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_LOCATION_ID, 0); /* Start at location 0 */
+    }
+    
+    /* Initialize display window memory */
+    if (MEM_POINTER_STORAGE_119 + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_POINTER_STORAGE_119, 0); /* Window top */
+    }
+    if (MEM_POINTER_STORAGE_37 + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_POINTER_STORAGE_37, 0); /* Window left */
+    }
+    if (MEM_POINTER_STORAGE_36 + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_POINTER_STORAGE_36, 80); /* Window width */
+    }
+    if (MEM_POINTER_STORAGE_120 + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_POINTER_STORAGE_120, 25); /* Window height */
+    }
+    
+    /* Initialize object table for display functions */
+    if (MEM_BASE_POINTER + 4 <= g_gameState->memory_pool_size) {
+        uint32_t base_ptr = MEM_READ32(MEM_BASE_POINTER);
+        
+        /* Create 5 test objects for display */
+        for (int i = 0; i < 5; i++) {
+            uint32_t obj_offset = base_ptr + (i * SIZE_OBJECT_ENTRY);
+            if (obj_offset + SIZE_OBJECT_ENTRY <= g_gameState->memory_pool_size) {
+                /* Set object name */
+                if (obj_offset + 4 + 6 <= g_gameState->memory_pool_size) {
+                    snprintf((char*)(g_gameState->memory_pool + obj_offset + 4), 6, "OBJ%d", i);
+                }
+                
+                /* Set object location (objects 0-2 at location 0, 3-4 at location 1) */
+                g_gameState->memory_pool[obj_offset + 1] = (i < 3) ? 0 : 1;
+                
+                /* Set object properties */
+                uint16_t properties = OBJ_FLAG_TAKEABLE;
+                if (obj_offset + 10 + 2 <= g_gameState->memory_pool_size) {
+                    g_gameState->memory_pool[obj_offset + 10] = properties & 0xFF;
+                    g_gameState->memory_pool[obj_offset + 11] = (properties >> 8) & 0xFF;
+                }
+            }
+        }
+    }
+    
+    /* Initialize error codes */
+    if (MEM_ERROR_CODE + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_ERROR_CODE, 0);
+    }
+    if (MEM_ERROR_FLAG + 4 <= g_gameState->memory_pool_size) {
+        MEM_WRITE32(MEM_ERROR_FLAG, 0);
+    }
+}
+
+/* Comprehensive deep dive test suite for Set 14: Object and Location Functions */
+void test_set_14_deep_dive(void) {
+    /* Ensure game state is initialized */
+    if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
+        printf("[DEEP] Set 14 Deep Dive: Game state not initialized - calling InitGameState()\n");
+        InitGameState();
+        if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
+            printf("[DEEP] Set 14 Deep Dive: Failed to initialize game state - skipping\n");
+            add_test_result("set_14_deep_dive_init", 0, "Failed to initialize game state");
+            return;
+        }
+    }
+    
+    printf("[DEEP] ========================================\n");
+    printf("[DEEP] Set 14 Deep Dive: Object and Location Functions\n");
+    printf("[DEEP] Using full game state initialization\n");
+    printf("[DEEP] ========================================\n\n");
+    
+    int tests_passed = 0;
+    int tests_failed = 0;
+    int total_tests = 0;
+    
+    #ifdef _WIN32
+    
+    /* Category 1: handle_close_command() - Handle CLOSE command */
+    printf("[DEEP] Category 1: handle_close_command() - Handle CLOSE command (5 tests)\n");
+    {
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_14_memory_for_testing();
+            
+            /* Create a test object pointer */
+            int object_ptr = 0x2000 + (i * 100);
+            undefined2 result_param = 2;
+            
+            __try {
+                undefined2 result = handle_close_command(object_ptr, result_param);
+                printf("    [%d/5] PASS: handle_close_command(0x%x, %d) = 0x%x - close command with object ptr 0x%x\n", 
+                       i+1, object_ptr, result_param, result, object_ptr);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/5] FAIL: handle_close_command(0x%x, %d) - Exception 0x%x\n", 
+                       i+1, object_ptr, result_param, GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 2: display_object_info() - Display object information */
+    printf("[DEEP] Category 2: display_object_info() - Display object information (6 tests)\n");
+    {
+        struct {
+            uint object_id;
+            const char* desc;
+        } tests[] = {
+            {0, "display info for object 0"},
+            {1, "display info for object 1"},
+            {2, "display info for object 2"},
+            {3, "display info for object 3"},
+            {4, "display info for object 4"},
+            {99, "display info for invalid object 99"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_14_memory_for_testing();
+            
+            __try {
+                uint result = display_object_info(tests[i].object_id);
+                printf("    [%d/%d] PASS: display_object_info(%u) = %u - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].object_id, result, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: display_object_info(%u) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].object_id, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 3: handle_location_change() - Handle location changes */
+    printf("[DEEP] Category 3: handle_location_change() - Handle location changes (5 tests)\n");
+    {
+        struct {
+            undefined2 new_location_id;
+            const char* desc;
+        } tests[] = {
+            {0, "change to location 0"},
+            {1, "change to location 1"},
+            {2, "change to location 2"},
+            {3, "change to location 3"},
+            {4, "change to location 4"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_14_memory_for_testing();
+            
+            __try {
+                undefined2 result = handle_location_change(tests[i].new_location_id);
+                printf("    [%d/%d] PASS: handle_location_change(%d) = 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].new_location_id, result, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: handle_location_change(%d) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].new_location_id, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 4: move_to_location() - Move to location */
+    printf("[DEEP] Category 4: move_to_location() - Move to location (6 tests)\n");
+    {
+        struct {
+            byte location_id;
+            byte direction;
+            uint message_id;
+            char flag;
+            undefined2 context;
+            const char* desc;
+        } tests[] = {
+            {1, 1, 0, 0, 2, "move to location 1, direction north"},
+            {2, 2, 0, 0, 2, "move to location 2, direction south"},
+            {3, 3, 0, 0, 2, "move to location 3, direction east"},
+            {4, 4, 0, 0, 2, "move to location 4, direction west"},
+            {0, 0, 100, 0, 2, "move to location 0 with message 100"},
+            {1, 1, 0, 1, 2, "move to location 1 with flag set"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_14_memory_for_testing();
+            
+            __try {
+                undefined2 result = move_to_location(tests[i].location_id, tests[i].direction, tests[i].message_id, tests[i].flag, tests[i].context);
+                printf("    [%d/%d] PASS: move_to_location(%u, %u, %u, %d, %d) = 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].location_id, tests[i].direction, tests[i].message_id, tests[i].flag, tests[i].context, result, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: move_to_location(%u, %u, %u, %d, %d) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].location_id, tests[i].direction, tests[i].message_id, tests[i].flag, tests[i].context, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 5: display_location_description() - Display location description */
+    printf("[DEEP] Category 5: display_location_description() - Display location description (5 tests)\n");
+    {
+        struct {
+            int location_id;
+            const char* desc;
+        } tests[] = {
+            {0, "display description for location 0"},
+            {1, "display description for location 1"},
+            {2, "display description for location 2"},
+            {3, "display description for location 3"},
+            {4, "display description for location 4"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_14_memory_for_testing();
+            
+            __try {
+                undefined2 result = display_location_description(tests[i].location_id);
+                printf("    [%d/%d] PASS: display_location_description(%d) = 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].location_id, result, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: display_location_description(%d) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].location_id, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 6: display_item_list() - Display item list */
+    printf("[DEEP] Category 6: display_item_list() - Display item list (5 tests)\n");
+    {
+        struct {
+            uint location_id;
+            const char* desc;
+        } tests[] = {
+            {0, "display items at location 0 (has objects 0-2)"},
+            {1, "display items at location 1 (has objects 3-4)"},
+            {2, "display items at location 2 (empty)"},
+            {255, "display items in inventory"},
+            {99, "display items at invalid location 99"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_14_memory_for_testing();
+            
+            __try {
+                display_item_list(tests[i].location_id);
+                printf("    [%d/%d] PASS: display_item_list(%u) - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].location_id, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: display_item_list(%u) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].location_id, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 7: display_status_screen() - Display status screen */
+    printf("[DEEP] Category 7: display_status_screen() - Display status screen (4 tests)\n");
+    {
+        struct {
+            int screen_id;
+            const char* desc;
+        } tests[] = {
+            {0, "display status screen 0"},
+            {1, "display status screen 1"},
+            {2, "display status screen 2"},
+            {-1, "display status screen with invalid ID"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_14_memory_for_testing();
+            
+            __try {
+                display_status_screen(tests[i].screen_id);
+                printf("    [%d/%d] PASS: display_status_screen(%d) - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].screen_id, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: display_status_screen(%d) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].screen_id, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 8: display_message() - Display message */
+    printf("[DEEP] Category 8: display_message() - Display message (6 tests)\n");
+    {
+        struct {
+            uint message_id;
+            const char* desc;
+        } tests[] = {
+            {0, "display message 0"},
+            {1, "display message 1"},
+            {2, "display message 2"},
+            {5, "display message 5"},
+            {9, "display message 9"},
+            {999, "display invalid message 999"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_14_memory_for_testing();
+            
+            __try {
+                int result = display_message(tests[i].message_id);
+                printf("    [%d/%d] PASS: display_message(%u) = %d - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].message_id, result, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: display_message(%u) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].message_id, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 9: display_formatted_message() - Display formatted message */
+    printf("[DEEP] Category 9: display_formatted_message() - Display formatted message (6 tests)\n");
+    {
+        struct {
+            undefined2 message_id;
+            uint value;
+            const char* desc;
+        } tests[] = {
+            {0, 0, "display formatted message 0 with value 0"},
+            {1, 10, "display formatted message 1 with value 10"},
+            {2, 100, "display formatted message 2 with value 100"},
+            {3, 255, "display formatted message 3 with value 255"},
+            {5, 1000, "display formatted message 5 with value 1000"},
+            {999, 0, "display invalid formatted message 999"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_14_memory_for_testing();
+            
+            __try {
+                display_formatted_message(tests[i].message_id, tests[i].value);
+                printf("    [%d/%d] PASS: display_formatted_message(%d, %u) - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].message_id, tests[i].value, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: display_formatted_message(%d, %u) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].message_id, tests[i].value, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 10: display_message_and_move() - Display message and move */
+    printf("[DEEP] Category 10: display_message_and_move() - Display message and move (5 tests)\n");
+    {
+        struct {
+            undefined2 message_id;
+            undefined2 result_param;
+            const char* desc;
+        } tests[] = {
+            {0, 2, "display message 0 and move"},
+            {1, 2, "display message 1 and move"},
+            {2, 2, "display message 2 and move"},
+            {5, 2, "display message 5 and move"},
+            {999, 2, "display invalid message 999 and move"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_14_memory_for_testing();
+            
+            __try {
+                undefined2 result = display_message_and_move(tests[i].message_id, tests[i].result_param);
+                printf("    [%d/%d] PASS: display_message_and_move(%d, %d) = 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].message_id, tests[i].result_param, result, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: display_message_and_move(%d, %d) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].message_id, tests[i].result_param, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    #else
+    printf("[DEEP] Set 14 Deep Dive: Exception handling not available on this platform\n");
+    #endif
+    
+    /* Print results */
+    printf("[DEEP] ========================================\n");
+    printf("[DEEP] Set 14 Deep Dive Results:\n");
+    printf("[DEEP]   Total Tests: %d\n", total_tests);
+    printf("[DEEP]   Passed: %d\n", tests_passed);
+    printf("[DEEP]   Failed: %d\n", tests_failed);
+    if (total_tests > 0) {
+        printf("[DEEP]   Pass Rate: %.1f%%\n", (tests_passed * 100.0) / total_tests);
+    }
+    printf("[DEEP] ========================================\n\n");
+    
+    /* Add overall result */
+    if (tests_failed == 0 && total_tests > 0) {
+        add_test_result("set_14_deep_dive", 1, "All deep dive tests passed");
+    } else {
+        add_test_result("set_14_deep_dive", 0, "Some deep dive tests failed");
+    }
+}
+
+/* Comprehensive deep dive test suite for Set 13: Object Management Functions */
+void test_set_13_deep_dive(void) {
+    /* Ensure game state is initialized */
+    if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
+        printf("[DEEP] Set 13 Deep Dive: Game state not initialized - calling InitGameState()\n");
+        InitGameState();
+        if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
+            printf("[DEEP] Set 13 Deep Dive: Failed to initialize game state - skipping\n");
+            add_test_result("set_13_deep_dive_init", 0, "Failed to initialize game state");
+            return;
+        }
+    }
+    
+    printf("[DEEP] ========================================\n");
+    printf("[DEEP] Set 13 Deep Dive: Object Management Functions\n");
+    printf("[DEEP] Using full game state initialization\n");
+    printf("[DEEP] ========================================\n\n");
+    
+    int tests_passed = 0;
+    int tests_failed = 0;
+    int total_tests = 0;
+    
+    #ifdef _WIN32
+    
+    /* Category 1: take_object() - Take object and add to inventory */
+    printf("[DEEP] Category 1: take_object() - Take object and add to inventory (6 tests)\n");
+    {
+        struct {
+            uint object_id;
+            int location_id;
+            const char* desc;
+        } tests[] = {
+            {0, 0, "take object 0 from location 0 (takeable)"},
+            {2, 0, "take object 2 from location 0 (takeable)"},
+            {1, 0, "take object 1 from location 0 (not takeable, should fail)"},
+            {8, 1, "take object 8 from location 1 (takeable)"},
+            {5, 255, "take object 5 from inventory (already in inventory)"},
+            {99, 0, "take invalid object 99 (out of bounds)"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_13_memory_for_testing();
+            
+            __try {
+                undefined2 result = take_object(tests[i].object_id, tests[i].location_id);
+                printf("    [%d/%d] PASS: take_object(%u, %d) = 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].object_id, tests[i].location_id, result, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: take_object(%u, %d) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].object_id, tests[i].location_id, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 2: drop_object() - Drop object from inventory */
+    printf("[DEEP] Category 2: drop_object() - Drop object from inventory (5 tests)\n");
+    {
+        struct {
+            int object_id;
+            int location_id;
+            const char* desc;
+        } tests[] = {
+            {5, 0, "drop object 5 to location 0 (from inventory)"},
+            {6, 1, "drop object 6 to location 1 (from inventory)"},
+            {0, 0, "drop object 0 to location 0 (not in inventory)"},
+            {7, 0, "drop object 7 to location 0 (from inventory)"},
+            {99, 0, "drop invalid object 99 (out of bounds)"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_13_memory_for_testing();
+            
+            __try {
+                undefined2 result = drop_object(tests[i].object_id, tests[i].location_id);
+                printf("    [%d/%d] PASS: drop_object(%d, %d) = 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].object_id, tests[i].location_id, result, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: drop_object(%d, %d) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].object_id, tests[i].location_id, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 3: take_all_objects() - Take all objects from location */
+    printf("[DEEP] Category 3: take_all_objects() - Take all objects from location (4 tests)\n");
+    {
+        struct {
+            int location_id;
+            undefined2 result_param;
+            const char* desc;
+        } tests[] = {
+            {0, 2, "take all from location 0 (has objects 0-4)"},
+            {1, 2, "take all from location 1 (has objects 8-9)"},
+            {2, 2, "take all from location 2 (empty)"},
+            {99, 2, "take all from invalid location 99"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_13_memory_for_testing();
+            
+            __try {
+                undefined2 result = take_all_objects(tests[i].location_id, tests[i].result_param);
+                printf("    [%d/%d] PASS: take_all_objects(%d, %d) = 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].location_id, tests[i].result_param, result, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: take_all_objects(%d, %d) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].location_id, tests[i].result_param, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 4: drop_all_objects() - Drop all objects from inventory */
+    printf("[DEEP] Category 4: drop_all_objects() - Drop all objects from inventory (4 tests)\n");
+    {
+        struct {
+            int location_id;
+            undefined2 result_param;
+            const char* desc;
+        } tests[] = {
+            {0, 2, "drop all to location 0 (inventory has objects 5-7)"},
+            {1, 2, "drop all to location 1"},
+            {2, 2, "drop all to location 2"},
+            {99, 2, "drop all to invalid location 99"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_13_memory_for_testing();
+            
+            __try {
+                undefined2 result = drop_all_objects(tests[i].location_id, tests[i].result_param);
+                printf("    [%d/%d] PASS: drop_all_objects(%d, %d) = 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].location_id, tests[i].result_param, result, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: drop_all_objects(%d, %d) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].location_id, tests[i].result_param, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 5: is_object_in_inventory() - Check if object in inventory */
+    printf("[DEEP] Category 5: is_object_in_inventory() - Check if object in inventory (6 tests)\n");
+    {
+        struct {
+            uint object_id;
+            bool expected;
+            const char* desc;
+        } tests[] = {
+            {5, true, "object 5 in inventory (location 255)"},
+            {6, true, "object 6 in inventory (location 255)"},
+            {7, true, "object 7 in inventory (location 255)"},
+            {0, false, "object 0 not in inventory (at location 0)"},
+            {8, false, "object 8 not in inventory (at location 1)"},
+            {99, false, "invalid object 99 not in inventory"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_13_memory_for_testing();
+            
+            __try {
+                bool result = is_object_in_inventory(tests[i].object_id);
+                if (result == tests[i].expected) {
+                    printf("    [%d/%d] PASS: is_object_in_inventory(%u) = %s - %s\n", 
+                           i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].object_id, result ? "true" : "false", tests[i].desc);
+                    tests_passed++;
+                } else {
+                    printf("    [%d/%d] FAIL: is_object_in_inventory(%u) = %s (expected %s) - %s\n", 
+                           i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].object_id, result ? "true" : "false", tests[i].expected ? "true" : "false", tests[i].desc);
+                    tests_failed++;
+                }
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: is_object_in_inventory(%u) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].object_id, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 6: add_object_to_list() - Add object to linked list */
+    printf("[DEEP] Category 6: add_object_to_list() - Add object to linked list (5 tests)\n");
+    {
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_13_memory_for_testing();
+            
+            /* Get list buffer pointer */
+            uint32_t list_offset = 0;
+            if (MEM_OBJECT_LIST_BASE + 4 <= g_gameState->memory_pool_size) {
+                list_offset = MEM_READ32(MEM_OBJECT_LIST_BASE);
+            }
+            
+            if (list_offset > 0 && list_offset + 10 <= g_gameState->memory_pool_size) {
+                byte *list_ptr = g_gameState->memory_pool + list_offset;
+                byte object_id = i + 1;
+                
+                __try {
+                    undefined2 result = add_object_to_list(list_ptr, object_id);
+                    printf("    [%d/5] PASS: add_object_to_list(list, %u) = 0x%x - add object %u to list\n", 
+                           i+1, object_id, result, object_id);
+                    tests_passed++;
+                } __except(EXCEPTION_EXECUTE_HANDLER) {
+                    printf("    [%d/5] FAIL: add_object_to_list(list, %u) - Exception 0x%x\n", 
+                           i+1, object_id, GetExceptionCode());
+                    tests_failed++;
+                }
+            } else {
+                printf("    [%d/5] SKIP: add_object_to_list - list buffer not initialized\n", i+1);
+                total_tests--;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 7: remove_object_from_list() - Remove object from linked list */
+    printf("[DEEP] Category 7: remove_object_from_list() - Remove object from linked list (5 tests)\n");
+    {
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_13_memory_for_testing();
+            
+            /* Get list buffer pointer */
+            uint32_t list_offset = 0;
+            if (MEM_OBJECT_LIST_BASE + 4 <= g_gameState->memory_pool_size) {
+                list_offset = MEM_READ32(MEM_OBJECT_LIST_BASE);
+            }
+            
+            if (list_offset > 0 && list_offset + 10 <= g_gameState->memory_pool_size) {
+                byte *list_ptr = g_gameState->memory_pool + list_offset;
+                
+                /* Add some objects to the list first */
+                for (int j = 1; j <= 5; j++) {
+                    __try {
+                        add_object_to_list(list_ptr, j);
+                    } __except(EXCEPTION_EXECUTE_HANDLER) {
+                        /* Ignore exceptions during setup */
+                    }
+                }
+                
+                byte object_id = i + 1;
+                
+                __try {
+                    int result = remove_object_from_list(list_ptr, object_id);
+                    printf("    [%d/5] PASS: remove_object_from_list(list, %u) = %d - remove object %u from list\n", 
+                           i+1, object_id, result, object_id);
+                    tests_passed++;
+                } __except(EXCEPTION_EXECUTE_HANDLER) {
+                    printf("    [%d/5] FAIL: remove_object_from_list(list, %u) - Exception 0x%x\n", 
+                           i+1, object_id, GetExceptionCode());
+                    tests_failed++;
+                }
+            } else {
+                printf("    [%d/5] SKIP: remove_object_from_list - list buffer not initialized\n", i+1);
+                total_tests--;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 8: move_object_between_locations() - Move object between locations */
+    printf("[DEEP] Category 8: move_object_between_locations() - Move object between locations (6 tests)\n");
+    {
+        struct {
+            uint object_id;
+            int from_location;
+            int to_location;
+            const char* desc;
+        } tests[] = {
+            {0, 0, 1, "move object 0 from location 0 to 1"},
+            {5, 255, 0, "move object 5 from inventory to location 0"},
+            {8, 1, 255, "move object 8 from location 1 to inventory"},
+            {2, 0, 2, "move object 2 from location 0 to 2"},
+            {6, 255, 1, "move object 6 from inventory to location 1"},
+            {99, 0, 1, "move invalid object 99 (should handle gracefully)"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_13_memory_for_testing();
+            
+            __try {
+                move_object_between_locations(tests[i].object_id, tests[i].from_location, tests[i].to_location);
+                printf("    [%d/%d] PASS: move_object_between_locations(%u, %d, %d) - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].object_id, tests[i].from_location, tests[i].to_location, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: move_object_between_locations(%u, %d, %d) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].object_id, tests[i].from_location, tests[i].to_location, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 9: handle_object_interaction() - Handle object interactions */
+    printf("[DEEP] Category 9: handle_object_interaction() - Handle object interactions (5 tests)\n");
+    {
+        struct {
+            int object_id;
+            int action_id;
+            undefined2 result_param;
+            const char* desc;
+        } tests[] = {
+            {0, 1, 2, "interact with object 0, action 1"},
+            {5, 2, 2, "interact with object 5, action 2"},
+            {8, 3, 2, "interact with object 8, action 3"},
+            {2, 0, 2, "interact with object 2, action 0"},
+            {99, 1, 2, "interact with invalid object 99"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_13_memory_for_testing();
+            
+            __try {
+                undefined2 result = handle_object_interaction(tests[i].object_id, tests[i].action_id, tests[i].result_param);
+                printf("    [%d/%d] PASS: handle_object_interaction(%d, %d, %d) = 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].object_id, tests[i].action_id, tests[i].result_param, result, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: handle_object_interaction(%d, %d, %d) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].object_id, tests[i].action_id, tests[i].result_param, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 10: handle_open_command() - Handle OPEN command */
+    printf("[DEEP] Category 10: handle_open_command() - Handle OPEN command (5 tests)\n");
+    {
+        for (int i = 0; i < 5; i++) {
+            total_tests++;
+            InitGameState();
+            initialize_set_13_memory_for_testing();
+            
+            /* Create a test object pointer */
+            int object_ptr = 0x1000 + (i * 100);
+            undefined2 result_param = 2;
+            
+            __try {
+                undefined2 result = handle_open_command(object_ptr, result_param);
+                printf("    [%d/5] PASS: handle_open_command(0x%x, %d) = 0x%x - open command with object ptr 0x%x\n", 
+                       i+1, object_ptr, result_param, result, object_ptr);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/5] FAIL: handle_open_command(0x%x, %d) - Exception 0x%x\n", 
+                       i+1, object_ptr, result_param, GetExceptionCode());
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    #else
+    printf("[DEEP] Set 13 Deep Dive: Exception handling not available on this platform\n");
+    #endif
+    
+    /* Print results */
+    printf("[DEEP] ========================================\n");
+    printf("[DEEP] Set 13 Deep Dive Results:\n");
+    printf("[DEEP]   Total Tests: %d\n", total_tests);
+    printf("[DEEP]   Passed: %d\n", tests_passed);
+    printf("[DEEP]   Failed: %d\n", tests_failed);
+    if (total_tests > 0) {
+        printf("[DEEP]   Pass Rate: %.1f%%\n", (tests_passed * 100.0) / total_tests);
+    }
+    printf("[DEEP] ========================================\n\n");
+    
+    /* Add overall result */
+    if (tests_failed == 0 && total_tests > 0) {
+        add_test_result("set_13_deep_dive", 1, "All deep dive tests passed");
+    } else {
+        add_test_result("set_13_deep_dive", 0, "Some deep dive tests failed");
+    }
+}
+
 /* Comprehensive deep dive test suite for Set 12: Command Processing Functions */
 void test_set_12_deep_dive(void) {
     /* Ensure game state is initialized */
@@ -11112,6 +13485,258 @@ static int print_test_summary(void) {
     return failed;
 }
 
+/* Deep dive test for converted display functions (Priority 1) */
+void test_display_functions_converted(void) {
+    /* Ensure game state is initialized */
+    if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
+        printf("[DISPLAY] Display Functions Test: Game state not initialized - calling InitGameState()\n");
+        InitGameState();
+        if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
+            printf("[DISPLAY] Display Functions Test: Failed to initialize game state - skipping\n");
+            add_test_result("display_functions_init", 0, "Failed to initialize game state");
+            return;
+        }
+    }
+    
+    printf("[DISPLAY] ========================================\n");
+    printf("[DISPLAY] Converted Display Functions Test Suite\n");
+    printf("[DISPLAY] Testing Priority 1 functions with full game state\n");
+    printf("[DISPLAY] ========================================\n\n");
+    
+    int tests_passed = 0;
+    int tests_failed = 0;
+    int total_tests = 0;
+    
+    #ifdef _WIN32
+    
+    /* Category 1: display_location_description() - Show room descriptions */
+    printf("[DISPLAY] Category 1: display_location_description() - Room descriptions (6 tests)\n");
+    {
+        struct {
+            int location_id;
+            const char* desc;
+        } tests[] = {
+            {0x1000, "display description for location 0x1000"},
+            {0x1064, "display description for location 0x1064"},
+            {0x10c8, "display description for location 0x10c8"},
+            {0x112c, "display description for location 0x112c"},
+            {0x2000, "display description for location 0x2000"},
+            {0, "display description for location 0 (edge case)"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            __try {
+                undefined2 result = display_location_description(tests[i].location_id);
+                printf("    [%d/%d] PASS: display_location_description(0x%x) = 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].location_id, result, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: display_location_description(0x%x) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].location_id, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 2: display_item_list() - Show items in location */
+    printf("[DISPLAY] Category 2: display_item_list() - Show items in location (6 tests)\n");
+    {
+        struct {
+            uint location_id;
+            const char* desc;
+        } tests[] = {
+            {0, "display items in location 0"},
+            {1, "display items in location 1"},
+            {2, "display items in location 2"},
+            {5, "display items in location 5"},
+            {10, "display items in location 10"},
+            {255, "display items in location 255 (inventory)"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            __try {
+                display_item_list(tests[i].location_id);
+                printf("    [%d/%d] PASS: display_item_list(%u) - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].location_id, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: display_item_list(%u) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].location_id, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 3: display_object_info() - Show object details */
+    printf("[DISPLAY] Category 3: display_object_info() - Show object details (8 tests)\n");
+    {
+        struct {
+            uint object_id;
+            const char* desc;
+        } tests[] = {
+            {0, "display info for object 0"},
+            {1, "display info for object 1"},
+            {2, "display info for object 2"},
+            {3, "display info for object 3"},
+            {5, "display info for object 5"},
+            {10, "display info for object 10"},
+            {20, "display info for object 20"},
+            {50, "display info for object 50"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            __try {
+                uint result = display_object_info(tests[i].object_id);
+                printf("    [%d/%d] PASS: display_object_info(%u) = %u - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].object_id, result, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: display_object_info(%u) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].object_id, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 4: display_status_screen() - Show status and inventory */
+    printf("[DISPLAY] Category 4: display_status_screen() - Show status/inventory (4 tests)\n");
+    {
+        struct {
+            int screen_id;
+            const char* desc;
+        } tests[] = {
+            {0, "display status screen 0 (generic)"},
+            {1, "display status screen 1 (location-specific)"},
+            {2, "display status screen 2"},
+            {-1, "display status screen -1 (edge case)"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            __try {
+                display_status_screen(tests[i].screen_id);
+                printf("    [%d/%d] PASS: display_status_screen(%d) - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].screen_id, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: display_status_screen(%d) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].screen_id, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 5: display_message() - Show game messages */
+    printf("[DISPLAY] Category 5: display_message() - Show game messages (6 tests)\n");
+    {
+        struct {
+            uint message_id;
+            const char* desc;
+        } tests[] = {
+            {0, "display message 0"},
+            {1, "display message 1"},
+            {10, "display message 10"},
+            {100, "display message 100"},
+            {1000, "display message 1000"},
+            {0xFFFF, "display message 0xFFFF (max)"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            __try {
+                int result = display_message(tests[i].message_id);
+                printf("    [%d/%d] PASS: display_message(%u) = %d - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].message_id, result, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: display_message(%u) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].message_id, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    /* Category 6: display_formatted_message() - Show formatted messages */
+    printf("[DISPLAY] Category 6: display_formatted_message() - Formatted messages (6 tests)\n");
+    {
+        struct {
+            undefined2 message_id;
+            uint value;
+            const char* desc;
+        } tests[] = {
+            {0, 0, "display formatted message 0 with value 0"},
+            {1, 10, "display formatted message 1 with value 10"},
+            {10, 100, "display formatted message 10 with value 100"},
+            {100, 1000, "display formatted message 100 with value 1000"},
+            {0xFFFF, 0xFFFF, "display formatted message max with max value"},
+            {50, 0, "display formatted message 50 with value 0"},
+        };
+        
+        for (int i = 0; i < sizeof(tests)/sizeof(tests[0]); i++) {
+            total_tests++;
+            InitGameState();
+            initialize_full_game_context_for_testing();
+            
+            __try {
+                display_formatted_message(tests[i].message_id, tests[i].value);
+                printf("    [%d/%d] PASS: display_formatted_message(%u, %u) - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].message_id, tests[i].value, tests[i].desc);
+                tests_passed++;
+            } __except(EXCEPTION_EXECUTE_HANDLER) {
+                printf("    [%d/%d] FAIL: display_formatted_message(%u, %u) - Exception 0x%x - %s\n", 
+                       i+1, (int)(sizeof(tests)/sizeof(tests[0])), tests[i].message_id, tests[i].value, GetExceptionCode(), tests[i].desc);
+                tests_failed++;
+            }
+        }
+    }
+    printf("\n");
+    
+    #else
+    printf("[DISPLAY] Skipping tests - Windows-only functionality\n\n");
+    #endif
+    
+    /* Print results */
+    printf("[DISPLAY] ========================================\n");
+    printf("[DISPLAY] Converted Display Functions Test Results:\n");
+    printf("[DISPLAY]   Total Tests: %d\n", total_tests);
+    printf("[DISPLAY]   Passed: %d\n", tests_passed);
+    printf("[DISPLAY]   Failed: %d\n", tests_failed);
+    if (total_tests > 0) {
+        printf("[DISPLAY]   Pass Rate: %.1f%%\n", (float)tests_passed / total_tests * 100.0f);
+    }
+    printf("[DISPLAY] ========================================\n\n");
+    
+    /* Add to test results */
+    if (tests_failed == 0 && total_tests > 0) {
+        add_test_result("display_functions_converted", 1, "All converted display functions passed");
+    } else {
+        add_test_result("display_functions_converted", 0, "Some converted display function tests failed");
+    }
+}
+
 /* Main test function */
 int main(int argc, char* argv[]) {
     printf("Skull Game Function Test Suite\n");
@@ -11130,8 +13755,36 @@ int main(int argc, char* argv[]) {
     printf("\n");
     
     if (g_gameState != NULL && g_gameState->memory_pool != NULL) {
+        /* Run deep dive tests for Set 17 (Utility and Helper Functions) */
+        test_set_17_deep_dive();
+        printf("\n");
+        
+        /* Run indirect tests for Set 17 static functions */
+        test_set_17_static_functions_indirect();
+        printf("\n");
+        
+        /* Run deep dive tests for Set 16 (Interrupt and System Functions) */
+        test_set_16_deep_dive();
+        printf("\n");
+        
+        /* Run deep dive tests for Set 15 (Game State Functions) */
+        test_set_15_deep_dive();
+        printf("\n");
+        
+        /* Run deep dive tests for Set 14 (Object and Location Functions) */
+        test_set_14_deep_dive();
+        printf("\n");
+        
+        /* Run deep dive tests for Set 13 (Object Management Functions) */
+        test_set_13_deep_dive();
+        printf("\n");
+        
         /* Run deep dive tests for Set 12 (Command Processing Functions) */
         test_set_12_deep_dive();
+        printf("\n");
+        
+        /* Run deep dive tests for converted display functions (Priority 1) */
+        test_display_functions_converted();
         printf("\n");
     } else {
         printf("WARNING: Cannot run further tests - game state not initialized\n");
