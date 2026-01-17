@@ -1,0 +1,11 @@
+# Cursor IDE Auto-Keep Configuration
+# This file indicates that changes made to files in this directory should be automatically kept
+
+# For TESTING_PLAN.md specifically, all updates from update_testing_plan.ps1 should be kept automatically
+# The script includes safety features:
+# - Automatic backups before updates
+# - Error recovery
+# - Non-destructive updates (only modifies statistics and dates)
+
+# Note: This is a marker file. Cursor should be configured to auto-accept changes
+# when files are modified by automated scripts in this directory.

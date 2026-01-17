@@ -1,0 +1,221 @@
+ ษออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออป
+ บ                                                                          บ
+ บ                   SKULLDUGGERY - Adventures in Horror                    บ
+ บ                   Copyright (C) 1986, 88, 89 by David Jewett             บ
+ บ                   All rights reserved.                                   บ
+ บ                                                                          บ
+ บ                   Version 90415                                          บ
+ บ                   April 15, 1989                                         บ
+ บ                                                                          บ
+ ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
+
+                          DISCLAIMER OF WARRANTY
+
+  THIS SOFTWARE AND DOCUMENTATION ARE PROVIDED "AS IS" AND WITHOUT
+  WARRANTIES AS TO PERFORMANCE OR MERCHANTABILITY.  DISTRIBUTORS OF
+  THIS SOFTWARE MAY HAVE MADE STATEMENTS ABOUT THIS SOFTWARE, ANY SUCH
+  STATEMENTS DO NOT CONSTITUTE WARRANTIES AND SHOULD NOT BE RELIED ON BY
+  THE RECIPIENT.
+
+  THIS SOFTWARE IS PROVIDED WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES
+  WHATSOEVER. BECAUSE OF THE DIVERSITY OF CONDITIONS AND HARDWARE UNDER
+  WHICH THIS SOFTWARE MAY BE USED, NO WARRANTY OF FITNESS FOR A
+  PARTICULAR PURPOSE IS OFFERED. THE USER IS ADVISED TO TEST THIS
+  SOFTWARE THOROUGHLY BEFORE RELYING ON IT. THE USER MUST ASSUME THE
+  ENTIRE RISK OF USING THIS SOFTWARE.  THE AUTHOR ASSUMES NO LIABILITY
+  RELATING TO ANY USE OF THE SOFTWARE.
+
+
+  ABSTRACT
+
+  Skullduggery is a classic text adventure, set on the southeast coast of
+  eighteenth-century England.  During this period smuggling goods into
+  England was a common enterprise; necessitated primarily by the King's
+  tax on imports.  Indeed, it was a rare family who did not participate
+  in the smuggler's business at some time.
+
+  In this particular adventure a member of the Royal Family Leominster,
+  William the Wildheart, was heavily involved in the business of smuggling.
+  However, at some point in his career he was caught and turned-in by
+  his family.  As a result of his family's betrayal, William was found
+  guilty and executed.
+
+  Although dead, William's hate was intense and it prompted his return
+  as a ghost.  Also, William had hidden a massive treasure which
+  his family coveted greedily, and which he desired to keep for himself.
+  (Who said you can't take it with you?)
+
+  As an angry spirit, William wanted desparately to make his family pay
+  for their sins while protecting his treasure against any and all
+  intruders.  To this end, William will unmercifully torture any
+  individual who enters his domain.
+
+  Skullduggery was originally developed in 'C' for the Apple II series
+  computers, executing in 64K of memory.  The program was recently
+  ported to the PC-compatible computers.  This version of Skullduggery
+  has been tested with DOS 3.2 and DOS 3.3 on various XT and AT clones.
+  I sincerely hope you enjoy this adventure.
+
+
+  SHAREWARE
+
+    ***  COPY THIS PROGRAM AND GIVE IT TO EVERYONE YOU KNOW  ***
+
+  SKULLDUGGERY is distributed as 'shareware' or user-supported software.
+  Under this concept, you save the high cost of packaging and distribution
+  while still receiving high quality software.  Please distribute this
+  software to everyone you know, including friends, BBS's and user groups.
+  Any company that provides software duplication and distribution services
+  may include SKULLDUGGERY in their catalog and provide copies for a
+  reasonable duplication fee.  All copies of the software must include
+  the following files:  SKULL.EXE, SKULL.DOC, SKULL.X, SKULL.M, SKULL.T,
+  SKULL.MM, SKULL.MO, and SKULL.V.  You are not allowed to modify these
+  files in any manner, nor are you allowed to modify this shareware notice.
+  The author retains all other rights to the software, including copyright.
+
+  As a user of this software, you are encouraged to make a donation of
+  $5.00 to the author if you continue to use this program.  This donation
+  will help to support the further enhancement of this software, as well
+  as provide incentive for development of other shareware games.
+
+  Please address all correspondence to:
+
+        David Jewett
+        3809 Parkmont Drive
+        Plano, Texas 75023
+
+  When writing for any reason, please include the following:
+  
+      - Your name and address.
+      - A description of your system.
+
+  VERSION HISTORY
+
+  ????? - Previous versions existed only on the Apple II and were
+	  never distributed.
+
+  81215	- First version formally released into Shareware.
+
+  90215 - This version cleans-up a few problems.  You can now
+	  refer to the newspaper as 'paper'.  The border color
+	  now appears.  Input text is now the proper color.
+	  Under the previous version, an abnormal termination
+	  caused the machine to hang, thereby requiring a
+	  re-boot; this should(??) now be fixed.
+
+  90415 - This version is the first general release with on-screen
+          mapping.  It probably creates more bugs than it fixes.
+  
+  I have plans to further enhance this game substantially;
+  however, the level of user support this game receives will largely
+  determine whether the enhancements are actually realized.
+
+
+  INSTRUCTIONS
+
+  Skullduggery is an interactive text adventure.  In general, the user
+  interacts with the game by entering english-language sentences (or
+  commands).  The game responds with textual information, describing
+  the player's current circumstance.  In addition to normal responses,
+  random events are generated which may require additional actions
+  on the part of the player.  The game possesses a vocabulary of about
+  400 words, providing the basis for a fairly elaborate level of play
+  and interaction.
+
+  The user may move between locations by entering the following
+  commands:
+
+	n, north
+	ne
+	e, east
+	se
+	s, south
+	sw
+	w, west
+	nw
+	u, up
+	d, down
+
+  In addition, the verbs 'enter' and 'exit' are defined at some
+  locations and may be useful.
+
+  Most commands can be entered according to one of the following sentence
+  structures, or rules:
+
+	<verb>
+		- example:  'look'
+
+	<verb> <direct object>
+		- example:  'open the oak door'
+			    'examine ghost'
+			    'take sand'
+			    'drop sword'
+
+	<verb> <direct object> <preposition> <indirect object>
+		- example:  'unlock the oak door with the iron key'
+			    'kill the dead man with the shovel'
+
+	<verb> <preposition> <direct object>
+		- example:  'look in the bottle'
+			    'look on the table'
+			    'pick up the bottle'
+
+	<verb> <direct object> <preposition>
+		- example:  'put the bottle down'
+			    'pick the bottle up'
+
+  Sentences may also be joined with the word 'then' such as the
+  following example:
+
+        "put the tooth into the skull then hit the skull with the
+           pair of hands"
+
+
+  Some of the verbs defined in Skullduggery are listed below.  Items
+  in parentheses are abreviations of their corresponding full-length
+  words.
+
+	"search",	"examine (x)",	"look (l)",
+	"read",		"raise",	"pry",
+	"hit",		"pick",		"put",
+	"place",	"set",		"push",
+	"move",		"pull",		"dig",
+	"kill",		"attack",	"extinguish",
+	"light",	"burn",		"warm",
+	"take",		"get",		"carry",
+	"drop",		"touch",	"yell",
+	"open",		"close",	"go",
+	"walk",		"pour",		"rub",
+	"scratch",	"scrape",	"strike",
+	"knock",	"turn",		"twist",
+	"wait",		"tell",		"say",
+	"give",		"climb",	"cut",
+	"chop",		"stab",		"break",
+	"lock",		"unlock",	"eat",
+	"munch",	"drink",	"find",
+	"jump",		"sit",		"stand",
+	"board",	"disembark"
+
+
+  The following commands may be used for information and control
+  of game features:
+
+	"inventory (i)"	- list objects currently carried by the player
+	"quit"		- terminate the game
+	"verbose"	- long room desciptions
+	"brief" 	- short room descriptions
+	"save"		- save current game position
+	"restore,	- restore a previously saved game position
+	"again (g)"	- execute the last sentence entered
+
+
+  Certain verbs allow the use of the word 'all'; for example:
+
+	take all,
+	drop all,
+	pick up all,
+	put all down,
+	put all into <container>,
+	put all on <surface>,
+	etc.
+

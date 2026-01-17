@@ -34,46 +34,12 @@
 /* Global game state */
 GameState* g_gameState = NULL;
 
-/* Piped input detection - set once at startup */
-static BOOL g_stdin_is_piped = FALSE;
-static BOOL g_stdin_checked = FALSE;
-
 /* File opening state - tracks which file to open next in game_init sequence */
 static int g_file_open_index = 0;
 
 /* Reset file open index - useful for test initialization */
 void reset_file_open_index(void) {
     g_file_open_index = 0;
-}
-
-/* Check if stdin is piped/redirected (not a console) */
-static BOOL is_stdin_piped(void) {
-    if (g_stdin_checked) {
-        return g_stdin_is_piped;
-    }
-    
-    g_stdin_checked = TRUE;
-    
-    #ifdef _WIN32
-    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
-    DWORD dwMode = 0;
-    
-    /* If GetConsoleMode fails, stdin is redirected/piped */
-    g_stdin_is_piped = (hStdin == INVALID_HANDLE_VALUE || !GetConsoleMode(hStdin, &dwMode));
-    
-    if (g_stdin_is_piped) {
-        log_info("is_stdin_piped: Detected piped/redirected stdin");
-        fprintf(stderr, "INFO: Detected piped/redirected stdin - skipping console-specific initialization\n");
-        fflush(stderr);
-    } else {
-        log_info("is_stdin_piped: Detected console stdin");
-    }
-    #else
-    /* On non-Windows, assume console */
-    g_stdin_is_piped = FALSE;
-    #endif
-    
-    return g_stdin_is_piped;
 }
 
 /* File names in the order they're opened during game_init */
@@ -1276,13 +1242,6 @@ void setup_function_context_wrapper(void) {
         return;
     }
     
-    /* Skip console-specific setup when stdin is piped/redirected */
-    /* This prevents crashes when reading commands from a file or pipe */
-    if (is_stdin_piped()) {
-        // log_info("setup_function_context_wrapper: Skipping setup (stdin is piped)");
-        return;
-    }
-    
     // log_info("setup_function_context_wrapper: Calling setup_function_context");
     // fprintf(stderr, "setup_function_context_wrapper: Calling setup_function_context\n");
     fflush(stderr);
@@ -1514,66 +1473,7 @@ int load_and_display_message_wrapper(void) {
     return load_and_display_message(0);
 }
 
-/* Separate function for piped input to avoid stack corruption issues */
-static int read_piped_input_line(byte *buffer, int max_length) {
-    char temp_buffer[256];
-    
-    if (buffer == NULL || max_length == 0) {
-        return 0;
-    }
-    
-    if (fgets(temp_buffer, sizeof(temp_buffer), stdin) != NULL) {
-        size_t len = strlen(temp_buffer);
-        
-        /* Remove trailing newline */
-        if (len > 0 && temp_buffer[len-1] == '\n') {
-            temp_buffer[len-1] = '\0';
-            len--;
-        }
-        
-        /* Copy to output buffer */
-        if (len > 0 && len < (size_t)max_length) {
-            memcpy(buffer, temp_buffer, len + 1);
-            fprintf(stderr, "read_piped_input_line: Read \"%s\" (len=%d)\n", temp_buffer, (int)len);
-            fflush(stderr);
-            return (int)len;
-        } else if (len == 0) {
-            buffer[0] = '\0';
-            return 0;
-        } else {
-            /* Truncate if too long */
-            memcpy(buffer, temp_buffer, max_length - 1);
-            buffer[max_length - 1] = '\0';
-            return max_length - 1;
-        }
-    }
-    
-    /* EOF or error */
-    buffer[0] = '\0';
-    return 0;
-}
-
 undefined2 get_input_line_wrapper(void) {
-    /* Check if stdin is piped - use separate function to avoid stack corruption */
-    #ifdef _WIN32
-    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
-    DWORD dwMode = 0;
-    BOOL is_console = (hStdin != INVALID_HANDLE_VALUE && GetConsoleMode(hStdin, &dwMode));
-    
-    if (!is_console) {
-        /* Use piped input function with MEM_BUFFER_STORAGE */
-        if (g_gameState != NULL && g_gameState->memory_pool != NULL) {
-            byte *buffer = (byte *)(g_gameState->memory_pool + MEM_BUFFER_STORAGE);
-            int len = read_piped_input_line(buffer, 256);
-            fprintf(stderr, "get_input_line_wrapper: Piped input returned %d\n", len);
-            fflush(stderr);
-            return (undefined2)len;
-        }
-        return 0;
-    }
-    #endif
-    
-    /* Console mode - use normal function */
     return get_input_line(NULL, 0);
 }
 
@@ -1632,27 +1532,6 @@ int process_game_action_wrapper(void) {
 }
 
 int parse_command_input_wrapper(void) {
-    /* When stdin is piped, input is in MEM_BUFFER_STORAGE, so use that as input_buffer */
-    #ifdef _WIN32
-    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
-    DWORD dwMode = 0;
-    BOOL is_console = (hStdin != INVALID_HANDLE_VALUE && GetConsoleMode(hStdin, &dwMode));
-    
-    fprintf(stderr, "parse_command_input_wrapper: is_console=%d\n", is_console);
-    fflush(stderr);
-    
-    if (!is_console) {
-        /* Piped input - use MEM_BUFFER_STORAGE as input_buffer */
-        /* parse_command_input(token_buffer, input_buffer) */
-        fprintf(stderr, "parse_command_input_wrapper: Using MEM_BUFFER_STORAGE (0x%x) as input_buffer, MEM_COMMAND_BUFFER (0x%x) as token_buffer\n", MEM_BUFFER_STORAGE, MEM_COMMAND_BUFFER);
-        fflush(stderr);
-        return parse_command_input(MEM_COMMAND_BUFFER, MEM_BUFFER_STORAGE);
-    }
-    #endif
-    
-    /* Console input - use 0 (will be filled by get_input_line) */
-    fprintf(stderr, "parse_command_input_wrapper: Using 0 as input_buffer (console mode)\n");
-    fflush(stderr);
     return parse_command_input(0, 0);
 }
 

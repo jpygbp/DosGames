@@ -1,0 +1,12 @@
+Microsoft (R) C/C++ Optimizing Compiler Version 19.50.35722 for x64
+Copyright (C) Microsoft Corporation.  All rights reserved.
+
+dos_compat.c
+c1: fatal error C1083: Cannot open source file: 'dos_compat.c': No such file or directory
+main.c
+c1: fatal error C1083: Cannot open source file: 'main.c': No such file or directory
+skull_ported.c
+c1: fatal error C1083: Cannot open source file: 'skull_ported.c': No such file or directory
+function_stubs.c
+c1: fatal error C1083: Cannot open source file: 'function_stubs.c': No such file or directory
+Generating Code...

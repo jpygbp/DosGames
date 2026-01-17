@@ -51,7 +51,6 @@
 #include <string.h>
 #include "dos_compat.h"
 #include "game_constants.h"
-#include "display_adapter.h"
 
 /* Helper macro to write debug messages to log file */
 #define DEBUG_LOG(...) log_debug_message(__VA_ARGS__)
@@ -609,7 +608,7 @@ int load_game_data_files(void)
   // log_info("load_game_data_files: File loading complete");
   #ifdef _WIN32
   } __except(EXCEPTION_EXECUTE_HANDLER) {
-    /* Skip logging to avoid nested exceptions */
+    log_exception_details(GetExceptionCode(), "load_game_data_files", __FILE__, __LINE__);
     return -1;
   }
   #endif
@@ -680,30 +679,6 @@ static void setup_display_init(void)
 void game_init(void)
 
 {
-  #ifdef _WIN32
-  /* Simplified Windows version - bypass complex DOS initialization */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return;
-  }
-  
-  /* Minimal initialization for Windows testing */
-  log_info("game_init: Windows simplified version - skipping complex DOS initialization");
-  
-  /* Set default video mode (text mode) */
-  if (MEM_VIDEO_MODE + 4 <= g_gameState->memory_pool_size) {
-    MEM_WRITE32(MEM_VIDEO_MODE, 0); /* 0 = text mode */
-  }
-  
-  /* Initialize basic game state flags if needed */
-  if (MEM_GAME_FLAGS + 4 <= g_gameState->memory_pool_size) {
-    MEM_WRITE32(MEM_GAME_FLAGS, 0); /* Clear game flags */
-  }
-  
-  log_info("game_init: Windows initialization complete");
-  return;
-  
-  #else
-  /* Original DOS implementation */
   uint unused_uint;
   undefined2 *unused_ptr2;
   undefined2 *unused_ptr3;
@@ -751,18 +726,10 @@ void game_init(void)
   fprintf(stderr, "game_init: About to wait for character input (get_char)\n");
   fflush(stderr);
   
-  #ifdef _WIN32
-  /* On Windows, skip interactive input for testing - default to 'N' (no color/text mode) */
-  input_char = 'N';
-  log_info("game_init: Windows test mode - defaulting to 'N' (text mode)");
-  fprintf(stderr, "game_init: Windows test mode - defaulting to 'N' (text mode)\n");
-  fflush(stderr);
-  #else
   input_char = get_char();
   log_info("game_init: Received character: '%c' (0x%02x)", input_char, (unsigned char)input_char);
   fprintf(stderr, "\ngame_init: Received character: '%c' (0x%02x)\n", input_char, (unsigned char)input_char);
   fflush(stderr);
-  #endif
   
   /* Handle color preference: 'N' or 'n' = no color (text mode), 'Y' or 'y' = color/graphics mode */
   if ((input_char == 'n') || (input_char == 'N')) {
@@ -988,7 +955,6 @@ void game_init(void)
   } while (loop_counter == 0);
   set_video_mode(VIDEO_MODE_TEXT);
   return;
-  #endif
 }
 
 
@@ -1007,18 +973,7 @@ int process_commands(int command_buffer,undefined2 context)
   __try {
   #endif
   
-  /* FIXED: Make setup_function_context_wrapper() non-fatal - continue even if it fails */
-  /* Similar to lookup_command() and execute_command() - setup failures shouldn't prevent command processing */
-  #ifdef _WIN32
-  __try {
-    setup_function_context_wrapper();
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "process_commands: setup_function_context_wrapper (non-fatal)", __FILE__, __LINE__);
-    /* Continue execution - setup might fail but command processing can still work */
-  }
-  #else
   setup_function_context_wrapper();
-  #endif
   
   /* Validate command_buffer */
   if (command_buffer < 0 || command_buffer >= (int)g_gameState->memory_pool_size) {
@@ -1072,15 +1027,11 @@ int process_commands(int command_buffer,undefined2 context)
   
   #ifdef _WIN32
   } __except(EXCEPTION_EXECUTE_HANDLER) {
-    /* Outer exception handler - catch any exceptions from the entire function */
-    /* CRITICAL FIX: Return -1 immediately without any operations that might throw exceptions */
-    /* Don't call GetExceptionCode(), printf, log functions, or any other operations */
-    /* Just return -1 to indicate error - this fully swallows the exception */
-    return -1;
+    log_exception_details(GetExceptionCode(), "process_commands", __FILE__, __LINE__);
+    return -1; /* Return error on exception */
   }
   #endif
   
-  /* Final return - command_count is already set */
   return command_count;
 }
 
@@ -1102,8 +1053,6 @@ int parse_command_input(int token_buffer,int input_buffer)
   undefined2 stack_value;
   int stack_param;
   undefined *stack_ptr;
-  int first_token_invalid = 0; /* Flag to track if first token was invalid */
-  int input_processed = 0; /* Flag to track if input has been processed (prevents infinite retries) */
   
   token_count = 0;
   
@@ -1157,77 +1106,55 @@ int parse_command_input(int token_buffer,int input_buffer)
   #endif
   
   do {
-    /* CRITICAL FIX: If input has already been processed, don't retry - exit loop */
-    /* This prevents infinite loops with pre-filled test buffers */
-    if (input_processed) {
-      log_info("parse_command_input: Input already processed, exiting retry loop");
-      break; /* Exit do-while loop */
-    }
-    
-    log_info("parse_command_input: In do-while loop, about to set stack variables");
-    fprintf(stderr, "parse_command_input: In do-while loop\n");
-    fflush(stderr);
-    
     stack_ptr = (uint8_t*)MEM_STACK_VALUE_1;
     stack_param = input_buffer;
     stack_value = MEM_STACK_VALUE_2;
-    
-    log_info("parse_command_input: Stack variables set");
-    fprintf(stderr, "parse_command_input: Stack variables set\n");
-    fflush(stderr);
     
     /* FIXED: Store input_buffer in MEM_STACK_VALUE_1 so get_input_line_wrapper can use it */
     /* But get_input_line_wrapper() uses MEM_BUFFER_STORAGE, so we need to either: */
     /* 1. Copy data from input_buffer to MEM_BUFFER_STORAGE, or */
     /* 2. Call get_input_line directly with the buffer */
     /* For now, let's pre-fill MEM_BUFFER_STORAGE with input_buffer content if it exists */
-    /* SKIP if input_buffer is 0 or if input_buffer == MEM_BUFFER_STORAGE (piped input case) */
-    if (input_buffer > 0 && input_buffer != MEM_BUFFER_STORAGE && 
-        input_buffer < (int)g_gameState->memory_pool_size &&
+    if (input_buffer >= 0 && input_buffer < (int)g_gameState->memory_pool_size &&
         MEM_BUFFER_STORAGE + 256 <= g_gameState->memory_pool_size) {
       char* input_buf_ptr = (char*)(g_gameState->memory_pool + input_buffer);
       char* mem_buf_ptr = (char*)(g_gameState->memory_pool + MEM_BUFFER_STORAGE);
       /* Copy input_buffer to MEM_BUFFER_STORAGE so get_input_line can read it */
       memcpy(mem_buf_ptr, input_buf_ptr, 256);
-      fprintf(stderr, "parse_command_input: Copied input_buffer (0x%x) to MEM_BUFFER_STORAGE\n", input_buffer);
-      fflush(stderr);
-    } else {
-      fprintf(stderr, "parse_command_input: Skipping pre-copy (input_buffer=0x%x)\n", input_buffer);
-      fflush(stderr);
+      log_info("parse_command_input: Copied input_buffer (0x%x) to MEM_BUFFER_STORAGE (0x%x)", 
+               input_buffer, MEM_BUFFER_STORAGE);
     }
     
-    fprintf(stderr, "parse_command_input: Before log_info call\n");
-    fflush(stderr);
-    log_info("parse_command_input: Before try block");
-    fprintf(stderr, "parse_command_input: After log_info, before try block\n");
-    fflush(stderr);
-    
+    #ifdef _WIN32
+    __try {
+      input_length = get_input_line_wrapper();
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+      log_exception_details(GetExceptionCode(), "parse_command_input: get_input_line_wrapper", __FILE__, __LINE__);
+      return 0; /* Return 0 on exception */
+    }
+    #else
     input_length = get_input_line_wrapper();
-    
-    /* Mark that we've processed input (prevent infinite retries) */
-    input_processed = 1;
+    #endif
     
     /* After get_input_line_wrapper returns, copy data back from MEM_BUFFER_STORAGE to input_buffer */
-    /* Skip copy if input_buffer == MEM_BUFFER_STORAGE (piped input case) */
-    if (input_length > 0 && input_buffer > 0 && input_buffer != MEM_BUFFER_STORAGE && 
-        input_buffer < (int)g_gameState->memory_pool_size &&
+    if (input_length > 0 && input_buffer >= 0 && input_buffer < (int)g_gameState->memory_pool_size &&
         MEM_BUFFER_STORAGE + input_length <= g_gameState->memory_pool_size) {
       char* input_buf_ptr = (char*)(g_gameState->memory_pool + input_buffer);
       char* mem_buf_ptr = (char*)(g_gameState->memory_pool + MEM_BUFFER_STORAGE);
       /* Log MEM_BUFFER_STORAGE before copy */
-      fprintf(stderr, "parse_command_input: Copying from MEM_BUFFER_STORAGE to input_buffer\n");
-      fflush(stderr);
+      log_info("parse_command_input: MEM_BUFFER_STORAGE contains \"%.20s\" (length=%d)", mem_buf_ptr, input_length);
+      fprintf(stderr, "parse_command_input: MEM_BUFFER_STORAGE contains \"%.20s\" (length=%d)\n", mem_buf_ptr, input_length);
       memcpy(input_buf_ptr, mem_buf_ptr, input_length);
       input_buf_ptr[input_length] = '\0'; /* Null terminate */
-      fprintf(stderr, "parse_command_input: Copy complete\n");
-      fflush(stderr);
-    } else if (input_buffer == MEM_BUFFER_STORAGE) {
-      fprintf(stderr, "parse_command_input: Skipping copy (input_buffer == MEM_BUFFER_STORAGE)\n");
-      fflush(stderr);
+      /* Log input_buffer after copy */
+      log_info("parse_command_input: input_buffer contains \"%.20s\" after copy", input_buf_ptr);
+      fprintf(stderr, "parse_command_input: input_buffer contains \"%.20s\" after copy\n", input_buf_ptr);
+      log_info("parse_command_input: Copied %d bytes from MEM_BUFFER_STORAGE back to input_buffer", input_length);
     }
     
-    fprintf(stderr, "parse_command_input: input_length = %d, input_buffer = %d, token_buffer = %d\n", 
+    log_info("parse_command_input: input_length = %d, input_buffer = %d, token_buffer = %d", 
              input_length, input_buffer, token_buffer);
+    fprintf(stderr, "parse_command_input: input_length = %d\n", input_length);
     fflush(stderr);
     
     input_index = 0;
@@ -1239,7 +1166,6 @@ int parse_command_input(int token_buffer,int input_buffer)
       fflush(stderr);
       token_count = 1; /* Set to 1 to exit do-while loop (will return 0 tokens after loop) */
       /* We'll set it back to 0 after the loop to return correct count */
-      break; /* Exit do-while loop immediately */
     } else {
       while (input_index < input_length && input_index + input_buffer < (int)g_gameState->memory_pool_size) {
         #ifdef _WIN32
@@ -1258,6 +1184,7 @@ int parse_command_input(int token_buffer,int input_buffer)
           
           /* Check if we've consumed all input (whitespace-only input) */
           if (input_index >= input_length) {
+            log_info("parse_command_input: Only whitespace in input, exiting parse loop");
             fprintf(stderr, "parse_command_input: Only whitespace in input\n");
             fflush(stderr);
             token_count = 1; /* Set to 1 to exit do-while loop */
@@ -1269,13 +1196,14 @@ int parse_command_input(int token_buffer,int input_buffer)
           
           /* Validate we can access the character */
           if (current_input_offset >= g_gameState->memory_pool_size) {
-            fprintf(stderr, "parse_command_input: current_input_offset out of bounds\n");
-            fflush(stderr);
+            log_warning("parse_command_input: current_input_offset (0x%x) out of bounds", current_input_offset);
             break; /* Exit loop on bounds violation */
           }
           
           /* Log the character we're about to start parsing from */
           uint8_t first_char = *(uint8_t*)(g_gameState->memory_pool + current_input_offset);
+          log_info("parse_command_input: Starting token parse at offset 0x%x, first char=0x%02x ('%c')", 
+                   current_input_offset, first_char, (first_char >= 32 && first_char < 127) ? first_char : '?');
           fprintf(stderr, "parse_command_input: Starting token parse at offset 0x%x, first char=0x%02x ('%c')\n", 
                   current_input_offset, first_char, (first_char >= 32 && first_char < 127) ? first_char : '?');
           fflush(stderr);
@@ -1312,8 +1240,7 @@ int parse_command_input(int token_buffer,int input_buffer)
               local_token_buffer[token_index] = char_val;
               token_index = token_index + 1;
             } else {
-              fprintf(stderr, "parse_command_input: Token too long, truncating\n");
-              fflush(stderr);
+              log_warning("parse_command_input: Token too long (>= 72), truncating");
               break; /* Token buffer full */
             }
             input_index = input_index + 1;
@@ -1322,8 +1249,7 @@ int parse_command_input(int token_buffer,int input_buffer)
           
           /* If we didn't parse any characters (shouldn't happen, but be safe) */
           if (token_index == 0) {
-            fprintf(stderr, "parse_command_input: No token characters parsed, skipping\n");
-            fflush(stderr);
+            log_warning("parse_command_input: No token characters parsed, skipping");
             /* Skip this iteration and continue to next */
             if (input_index < input_length) {
               input_index = input_index + 1;
@@ -1340,8 +1266,7 @@ int parse_command_input(int token_buffer,int input_buffer)
                 input_index = input_index + 1;
               }
             } __except(EXCEPTION_EXECUTE_HANDLER) {
-              fprintf(stderr, "parse_command_input: Exception writing null terminator\n");
-              fflush(stderr);
+              log_exception_details(GetExceptionCode(), "parse_command_input: null terminator write", __FILE__, __LINE__);
               /* Continue even if write fails */
             }
             #else
@@ -1351,14 +1276,15 @@ int parse_command_input(int token_buffer,int input_buffer)
             }
             #endif
           } else {
-            fprintf(stderr, "parse_command_input: write_offset out of bounds\n");
-            fflush(stderr);
+            log_warning("parse_command_input: write_offset (0x%x) out of bounds", write_offset);
           }
           if (token_index < 72) {
             local_token_buffer[token_index] = 0;
           }
           
           /* Log the token immediately after parsing */
+          log_info("parse_command_input: Parsed token \"%s\" (length=%d, token_index=%d)", 
+                   (char*)local_token_buffer, token_index, token_index);
           fprintf(stderr, "parse_command_input: Parsed token \"%s\" (length=%d) from input_buffer[%d:%d]\n", 
                   (char*)local_token_buffer, token_index, token_start, input_index);
           fflush(stderr);
@@ -1374,8 +1300,7 @@ int parse_command_input(int token_buffer,int input_buffer)
         
         /* Only process token if we actually parsed something */
         if (token_index == 0) {
-          fprintf(stderr, "parse_command_input: Empty token, skipping lookup\n");
-          fflush(stderr);
+          log_warning("parse_command_input: Empty token, skipping lookup");
           continue; /* Skip to next iteration */
         }
         
@@ -1399,25 +1324,25 @@ int parse_command_input(int token_buffer,int input_buffer)
             if (token_len > 0) {
               memcpy(temp_token_ptr, (char*)local_token_buffer, token_len);
               temp_token_ptr[token_len] = '\0';
+              log_info("parse_command_input: Copied token \"%s\" (len=%d) to offset 0x%x", 
+                       temp_token_ptr, (int)token_len, temp_token_offset);
               fprintf(stderr, "parse_command_input: Copied token \"%s\" to offset 0x%x\n", 
                       temp_token_ptr, temp_token_offset);
               fflush(stderr);
             } else {
-              fprintf(stderr, "parse_command_input: Token length is 0, skipping lookup\n");
-              fflush(stderr);
+              log_warning("parse_command_input: Token length is 0, skipping lookup");
               command_id = 0;
             }
           #ifdef _WIN32
           } __except(EXCEPTION_EXECUTE_HANDLER) {
-              fprintf(stderr, "parse_command_input: Exception in token copy setup\n");
-              fflush(stderr);
+            log_exception_details(GetExceptionCode(), "parse_command_input: token copy setup (non-fatal)", __FILE__, __LINE__);
             command_id = 0;
             token_len = 0;
           }
           #endif
           
-          /* Skip lookup if token is empty (command_id hasn't been set yet, so don't check it here) */
-          if (token_len == 0) {
+          /* Skip lookup if token is empty or copy failed */
+          if (token_len == 0 || command_id == 0) {
             if (token_count == 0) {
               input_index = input_length + 10;
               token_count = 0;
@@ -1433,8 +1358,7 @@ int parse_command_input(int token_buffer,int input_buffer)
             if (verify_count == 0 || verify_count > 1000) {
               /* Re-initialize if it was overwritten */
               MEM_WRITE32(MEM_STRING_COUNT, 5);
-              fprintf(stderr, "parse_command_input: Re-initialized MEM_STRING_COUNT to 5\n");
-              fflush(stderr);
+              log_info("parse_command_input: Re-initialized MEM_STRING_COUNT to 5 (was %u)", verify_count);
             }
           }
           if (MEM_STRING_TABLE + 4 <= g_gameState->memory_pool_size) {
@@ -1460,8 +1384,8 @@ int parse_command_input(int token_buffer,int input_buffer)
                 strcpy((char*)(g_gameState->memory_pool + string_table_offset + offset), "inventory"); offset += 10;
                 MEM_WRITE16(string_table_offset + offset, 5); offset += 2;
                 
-                fprintf(stderr, "parse_command_input: Re-initialized MEM_STRING_TABLE\n");
-                fflush(stderr);
+                log_info("parse_command_input: Re-initialized MEM_STRING_TABLE to 0x%x (was 0x%x)", 
+                         string_table_offset, verify_table);
               }
             }
           }
@@ -1469,18 +1393,17 @@ int parse_command_input(int token_buffer,int input_buffer)
             /* Convert pointer to offset for lookup_command */
             uintptr_t token_offset_value = temp_token_offset;
             if (token_offset_value > 0xFFFF) {
-              fprintf(stderr, "parse_command_input: token_offset exceeds 16-bit range\n");
-              fflush(stderr);
+              log_warning("parse_command_input: token_offset (0x%x) exceeds 16-bit range", (unsigned int)token_offset_value);
               command_id = 0;
             } else {
               #ifdef _WIN32
               __try {
                 command_id = lookup_command((undefined2)token_offset_value);
-                fprintf(stderr, "parse_command_input: lookup_command returned %d for token \"%s\"\n", 
+                log_info("parse_command_input: lookup_command returned %d for token \"%s\"", 
                          command_id, (char*)local_token_buffer);
-                fflush(stderr);
               } __except(EXCEPTION_EXECUTE_HANDLER) {
                 /* Exception in lookup_command is non-fatal - just set command_id to 0 and continue */
+                log_exception_details(GetExceptionCode(), "parse_command_input: lookup_command (non-fatal)", __FILE__, __LINE__);
                 fprintf(stderr, "parse_command_input: Exception in lookup_command for token \"%s\" (non-fatal, continuing)\n", 
                         (char*)local_token_buffer);
                 fflush(stderr);
@@ -1493,8 +1416,7 @@ int parse_command_input(int token_buffer,int input_buffer)
             }
           } /* End of if (token_len > 0) */
         } else {
-          fprintf(stderr, "parse_command_input: temp_token_offset out of bounds\n");
-          fflush(stderr);
+          log_warning("parse_command_input: temp_token_offset (0x%x) out of bounds", temp_token_offset);
           command_id = 0;
         }
         
@@ -1503,20 +1425,19 @@ int parse_command_input(int token_buffer,int input_buffer)
         __try {
         #endif
           if (command_id == 0) {
+            log_info("parse_command_input: command_id is 0 (token \"%s\" not found), token_count=%d", 
+                     (char*)local_token_buffer, token_count);
             fprintf(stderr, "parse_command_input: Token \"%s\" not found in command table (token_count=%d)\n", 
                     (char*)local_token_buffer, token_count);
             fflush(stderr);
             /* FIXED: Handle invalid tokens correctly */
-            /* If this is the first token and it's invalid, reset everything and exit do-while loop */
+            /* If this is the first token and it's invalid, reset everything */
             if (token_count == 0) {
               /* First token is invalid, reset everything and exit loop */
               input_index = input_length + 10;
-              token_count = 1; /* Set to non-zero to exit do-while loop */
-              first_token_invalid = 1; /* Mark that first token was invalid */
-              fprintf(stderr, "parse_command_input: First token invalid, resetting and exiting\n");
-              fflush(stderr);
+              token_count = 0;
+              log_info("parse_command_input: First token invalid, resetting and exiting");
               /* Don't write to token buffer - just skip this token */
-              break; /* Exit inner while loop, then do-while will exit because token_count != 0 */
             } else {
               /* Subsequent token is invalid - this is OK, just skip it */
               /* Don't increment token_count, don't reset it, don't write to token buffer */
@@ -1595,11 +1516,10 @@ int parse_command_input(int token_buffer,int input_buffer)
           log_exception_details(GetExceptionCode(), "parse_command_input: command_id handling (non-fatal)", __FILE__, __LINE__);
           fprintf(stderr, "parse_command_input: Exception handling command_id result (non-fatal, continuing)\n");
           fflush(stderr);
-          /* If exception occurs, treat as invalid token and exit loop */
+          /* If exception occurs, treat as invalid token and continue */
           if (token_count == 0) {
             input_index = input_length + 10;
-            token_count = 1; /* Set to non-zero to exit do-while loop */
-            first_token_invalid = 1; /* Mark that first token was invalid */
+            token_count = 0;
           }
           /* Note: continue statement not allowed in exception handler, so we'll let the loop continue naturally */
         }
@@ -1608,10 +1528,10 @@ int parse_command_input(int token_buffer,int input_buffer)
       }
     } while (token_count == 0);
   
-  /* If we had empty input or invalid first token, token_count was set to 1 to exit loop, now set it back to 0 */
-  if ((input_length == 0 || first_token_invalid) && token_count == 1) {
+  /* If we had empty input, token_count was set to 1 to exit loop, now set it back to 0 */
+  if (input_length == 0 && token_count == 1) {
     token_count = 0;
-    log_info("parse_command_input: Empty input or invalid first token, returning token_count=0");
+    log_info("parse_command_input: Empty input, returning token_count=0");
   }
   
   log_info("parse_command_input: After parsing loop, token_count = %d", token_count);
@@ -1627,10 +1547,13 @@ int parse_command_input(int token_buffer,int input_buffer)
       *(uint16_t*)(g_gameState->memory_pool + final_write_offset) = 0;
       log_info("parse_command_input: Wrote terminator at offset 0x%x", final_write_offset);
     } else {
+      log_warning("parse_command_input: final_write_offset (0x%x) out of bounds (pool_size=0x%x)", 
+                  final_write_offset, (unsigned int)g_gameState->memory_pool_size);
       fprintf(stderr, "parse_command_input: final_write_offset (0x%x) out of bounds\n", final_write_offset);
       fflush(stderr);
     }
   } __except(EXCEPTION_EXECUTE_HANDLER) {
+    log_exception_details(GetExceptionCode(), "parse_command_input: final token buffer write (non-fatal)", __FILE__, __LINE__);
     fprintf(stderr, "parse_command_input: Exception in final token buffer write (non-fatal) - continuing\n");
     fflush(stderr);
     /* Continue - return token_count even if final write fails */
@@ -1647,18 +1570,17 @@ int parse_command_input(int token_buffer,int input_buffer)
     /* Outer exception handler - catch any remaining exceptions */
     /* If we have a valid token_count from previous successful parsing, return it */
     /* Otherwise return 0 to indicate failure */
+    log_exception_details(GetExceptionCode(), "parse_command_input: outer exception handler (non-fatal)", __FILE__, __LINE__);
     fprintf(stderr, "parse_command_input: Outer exception handler caught exception 0x%x (token_count=%d) - returning token_count\n", 
             GetExceptionCode(), token_count);
     fflush(stderr);
     /* Return token_count if we successfully parsed some tokens, otherwise return 0 */
     /* This allows tests with valid first tokens (like "take item") to pass */
     if (token_count > 0) {
-      fprintf(stderr, "parse_command_input: Returning token_count=%d despite exception\n", token_count);
-      fflush(stderr);
+      log_info("parse_command_input: Returning token_count=%d despite exception", token_count);
       return token_count;
     } else {
-      fprintf(stderr, "parse_command_input: Returning 0 due to exception (no valid tokens)\n");
-      fflush(stderr);
+      log_info("parse_command_input: Returning 0 due to exception (no valid tokens)");
       return 0;
     }
   }
@@ -1692,21 +1614,18 @@ undefined2 get_input_line(byte *buffer,int max_length)
   /* Handle NULL buffer - use default memory location */
   if (buffer == NULL) {
     buffer = (byte *)(g_gameState->memory_pool + MEM_BUFFER_STORAGE);
-    fprintf(stderr, "get_input_line: buffer was NULL, using MEM_BUFFER_STORAGE\n");
-    fflush(stderr);
+    log_info("get_input_line: buffer was NULL, using MEM_BUFFER_STORAGE (offset 0x%x)", MEM_BUFFER_STORAGE);
   }
   
   /* Handle max_length == 0 - use default maximum length */
   if (max_length == 0) {
     max_length = 256; /* Reasonable default buffer size */
-    fprintf(stderr, "get_input_line: max_length was 0, using default 256\n");
-    fflush(stderr);
+    log_info("get_input_line: max_length was 0, using default 256");
   }
   
-  /* Note: Piped input is now handled in get_input_line_wrapper() */
-  /* This function only handles console input */
+  log_info("get_input_line: Called with buffer=%p (offset 0x%x), max_length=%d", 
+           (void*)buffer, (buffer != NULL) ? (unsigned int)((uintptr_t)buffer - (uintptr_t)g_gameState->memory_pool) : 0, max_length);
   
-  /* Console mode - use normal input handling */
   setup_function_context_wrapper();
   input_length = 0; /* Input length counter (not used until end, buffer_index tracks current length) */
   buffer_index = 0; /* Initialize buffer index */
@@ -2085,34 +2004,11 @@ int lookup_command(undefined2 command_string_ptr)
     log_warning("lookup_command: Game state not initialized");
     return 0;
   }
-  
-  uintptr_t command_str_offset = (uintptr_t)(uint16_t)command_string_ptr;
-  if (command_str_offset >= g_gameState->memory_pool_size) {
+  if ((uintptr_t)(uint16_t)command_string_ptr >= g_gameState->memory_pool_size) {
     log_warning("lookup_command: command_string_ptr offset (0x%x) out of bounds (pool_size=0x%x)", 
-                command_str_offset, (unsigned int)g_gameState->memory_pool_size);
+                (uintptr_t)(uint16_t)command_string_ptr, (unsigned int)g_gameState->memory_pool_size);
     return 0;
   }
-  
-  /* Validate input string is not empty and is within bounds */
-  #ifdef _WIN32
-  __try {
-    char* input_str = (char*)(g_gameState->memory_pool + command_str_offset);
-    if (command_str_offset + 1 <= g_gameState->memory_pool_size) {
-      if (input_str[0] == '\0') {
-        log_info("lookup_command: Input string is empty, returning 0");
-        return 0; /* Empty string - no match possible */
-      }
-    }
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "lookup_command: input validation (non-fatal)", __FILE__, __LINE__);
-    return 0; /* Invalid input - return 0 gracefully */
-  }
-  #else
-  char* input_str = (char*)(g_gameState->memory_pool + command_str_offset);
-  if (command_str_offset + 1 <= g_gameState->memory_pool_size && input_str[0] == '\0') {
-    return 0; /* Empty string */
-  }
-  #endif
   
   #ifdef _WIN32
   __try {
@@ -2201,11 +2097,9 @@ int lookup_command(undefined2 command_string_ptr)
     /* Validate string_offset is within bounds before proceeding */
     if (string_offset >= g_gameState->memory_pool_size || 
         string_table_base + string_offset >= g_gameState->memory_pool_size) {
-      log_warning("lookup_command: string_offset (0x%x) or string_table_base + string_offset (0x%x) out of bounds - skipping entry", 
+      log_warning("lookup_command: string_offset (0x%x) or string_table_base + string_offset (0x%x) out of bounds", 
                   string_offset, string_table_base + string_offset);
-      loop_counter = loop_counter + 1;
-      string_offset = string_offset + 10; /* Safe default increment to try next entry */
-      continue; /* Continue to next iteration */
+      break;
     }
     
     /* Log string table access for debugging */
@@ -2242,30 +2136,23 @@ int lookup_command(undefined2 command_string_ptr)
               string_len, string_offset);
       fflush(stderr);
     } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "lookup_command: string_length (non-fatal)", __FILE__, __LINE__);
-      fprintf(stderr, "lookup_command: Exception in string_length (0x%x) at offset 0x%x - skipping entry\n", 
+      log_exception_details(GetExceptionCode(), "lookup_command: string_length", __FILE__, __LINE__);
+      fprintf(stderr, "lookup_command: Exception in string_length (0x%x) at offset 0x%x\n", 
               GetExceptionCode(), string_offset);
       fflush(stderr);
-      /* Skip this entry and continue to next one - don't break entire loop */
-      loop_counter = loop_counter + 1;
-      /* Try to advance offset - use a safe default increment if we can't determine string length */
-      string_offset = string_offset + 10; /* Safe default increment */
-      continue; /* Continue to next iteration */
+      break; /* Break loop on exception */
     }
     #else
     string_len = string_length(string_ptr_for_length);
     #endif
     
     if (string_len <= 0 || string_len > 256) {
-      log_warning("lookup_command: Invalid string_len (%d) at offset 0x%x (base=0x%x), skipping entry", 
+      log_warning("lookup_command: Invalid string_len (%d) at offset 0x%x (base=0x%x), breaking loop", 
                   string_len, string_offset, string_table_base);
-      fprintf(stderr, "lookup_command: Invalid string_len (%d) at offset 0x%x, skipping entry\n", 
+      fprintf(stderr, "lookup_command: Invalid string_len (%d) at offset 0x%x, breaking loop\n", 
               string_len, string_offset);
       fflush(stderr);
-      /* Skip this entry and continue - don't break entire loop */
-      loop_counter = loop_counter + 1;
-      string_offset = string_offset + 10; /* Safe default increment */
-      continue; /* Continue to next iteration */
+      break;
     }
     
     /* Validate command_str pointer is within bounds */
@@ -2316,51 +2203,23 @@ int lookup_command(undefined2 command_string_ptr)
       fprintf(stderr, "lookup_command: string_compare returned %d\n", compare_result);
       fflush(stderr);
     } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "lookup_command: string_compare (non-fatal)", __FILE__, __LINE__);
-      fprintf(stderr, "lookup_command: Exception in string_compare (0x%x) - skipping entry\n", GetExceptionCode());
-      fflush(stderr);
-      /* Skip this entry and continue to next one - don't break entire loop */
-      loop_counter = loop_counter + 1;
-      string_offset = string_offset + string_len + 1 + 2; /* Advance to next entry */
-      continue; /* Continue to next iteration */
+      log_exception_details(GetExceptionCode(), "lookup_command: string_compare", __FILE__, __LINE__);
+      break; /* Break loop on exception */
     }
     #else
     compare_result = string_compare(command_str, table_str, STRING_COMPARE_LENGTH);
     #endif
     
-    /* FIXED: Verify exact match - both strings must be same length AND comparison must match */
-    /* STRING_COMPARE_LENGTH is only 6, so we need to verify lengths match exactly */
-    int command_str_len = 0;
-    #ifdef _WIN32
-    __try {
-      command_str_len = string_length(command_str);
-      log_info("lookup_command: command_str_len = %d, table_str_len (string_len) = %d", command_str_len, string_len);
-      fprintf(stderr, "lookup_command: Lengths - command=%d, table=%d\n", command_str_len, string_len);
-      fflush(stderr);
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "lookup_command: string_length(command_str) (non-fatal)", __FILE__, __LINE__);
-      fprintf(stderr, "lookup_command: Exception getting command string length (0x%x) - skipping entry\n", GetExceptionCode());
-      fflush(stderr);
-      loop_counter = loop_counter + 1;
-      string_offset = string_offset + string_len + 1 + 2; /* Advance to next entry */
-      continue; /* Continue to next iteration */
-    }
-    #else
-    command_str_len = string_length(command_str);
-    #endif
-    
-    /* Only consider it a match if comparison matches AND lengths are exactly equal */
-    if (compare_result == 0 && command_str_len == string_len) {
+    if (compare_result == 0) {
       log_info("lookup_command: Match found! Reading command_id at offset 0x%x (string_len=%d, base=0x%x, offset=0x%x)", 
                string_table_base + string_offset + string_len, string_len, string_table_base, string_offset);
       fprintf(stderr, "lookup_command: Match found! Reading command_id (string_len=%d, offset=0x%x)\n", 
               string_len, string_offset);
       fflush(stderr);
-      /* FIXED: Command ID is stored after the null terminator, so offset is: base + string_offset + string_len + 1 */
+      /* FIXED: Command ID is stored right after the string text, so offset is: base + string_offset + string_len */
       /* The string format is: [string text][null byte][command_id: 2 bytes] */
-      /* string_len is length WITHOUT null terminator, so we need +1 for the null byte */
-      uint32_t command_ptr_offset = string_table_base + string_offset + string_len + 1;
-      log_info("lookup_command: command_ptr_offset = 0x%x (calculated from base=0x%x + offset=0x%x + string_len=%d + 1)", 
+      uint32_t command_ptr_offset = string_table_base + string_offset + string_len;
+      log_info("lookup_command: command_ptr_offset = 0x%x (calculated from base=0x%x + offset=0x%x + string_len=%d)", 
                command_ptr_offset, string_table_base, string_offset, string_len);
       fprintf(stderr, "lookup_command: command_ptr_offset = 0x%x\n", command_ptr_offset);
       fflush(stderr);
@@ -2368,111 +2227,104 @@ int lookup_command(undefined2 command_string_ptr)
       if (command_ptr_offset + 2 <= g_gameState->memory_pool_size) {
         #ifdef _WIN32
         __try {
-          /* Use MEM_READ16 for proper little-endian reading (handles byte order automatically) */
-          command_id = (int)MEM_READ16(command_ptr_offset);
-          log_info("lookup_command: Read command_id = %d from offset 0x%x (using MEM_READ16 for correct byte order)", 
-                   command_id, command_ptr_offset);
-          fprintf(stderr, "lookup_command: Read command_id = %d from offset 0x%x\n", 
-                  command_id, command_ptr_offset);
-          fflush(stderr);
-          break; /* Exit loop immediately after finding match */
+          string_ptr = (uint8_t*)(g_gameState->memory_pool + command_ptr_offset);
+          /* Validate string_ptr[0] and string_ptr[1] are within bounds before accessing */
+          if ((uintptr_t)string_ptr >= (uintptr_t)g_gameState->memory_pool &&
+              (uintptr_t)string_ptr + 1 < (uintptr_t)g_gameState->memory_pool + g_gameState->memory_pool_size) {
+            /* Log bytes before reading */
+            log_info("lookup_command: Reading command_id bytes at offset 0x%x: [0]=0x%02x, [1]=0x%02x", 
+                     command_ptr_offset, string_ptr[0], string_ptr[1]);
+            fprintf(stderr, "lookup_command: Command ID bytes: [0]=0x%02x, [1]=0x%02x\n", 
+                    string_ptr[0], string_ptr[1]);
+            fflush(stderr);
+            /* CONCAT11: high byte is string_ptr[1], low byte is string_ptr[0] (little-endian) */
+            command_id = CONCAT11(string_ptr[1], string_ptr[0]);
+            log_info("lookup_command: Read command_id = %d (CONCAT11: high=0x%02x, low=0x%02x)", 
+                     command_id, string_ptr[1], string_ptr[0]);
+            fprintf(stderr, "lookup_command: Read command_id = %d (high=0x%02x, low=0x%02x)\n", 
+                    command_id, string_ptr[1], string_ptr[0]);
+            fflush(stderr);
+            loop_counter = string_count; /* Use string_count instead of re-reading */
+          } else {
+            log_warning("lookup_command: string_ptr out of bounds for command_id read (offset=0x%x)", command_ptr_offset);
+            break;
+          }
         } __except(EXCEPTION_EXECUTE_HANDLER) {
-          log_exception_details(GetExceptionCode(), "lookup_command: reading command_id (non-fatal)", __FILE__, __LINE__);
-          fprintf(stderr, "lookup_command: Exception reading command_id at offset 0x%x (0x%x) - skipping entry\n", 
-                  command_ptr_offset, GetExceptionCode());
-          fflush(stderr);
-          command_id = 0; /* Reset to 0 on exception */
-          loop_counter = loop_counter + 1;
-          string_offset = string_offset + string_len + 1 + 2; /* Advance to next entry */
-          continue; /* Continue to next iteration instead of breaking */
+          log_exception_details(GetExceptionCode(), "lookup_command: reading command_id", __FILE__, __LINE__);
+          break;
         }
         #else
-        command_id = (int)MEM_READ16(command_ptr_offset);
-        break; /* Exit loop immediately after finding match */
+        string_ptr = (uint8_t*)(g_gameState->memory_pool + command_ptr_offset);
+        if ((uintptr_t)string_ptr >= (uintptr_t)g_gameState->memory_pool &&
+            (uintptr_t)string_ptr + 1 < (uintptr_t)g_gameState->memory_pool + g_gameState->memory_pool_size) {
+          command_id = CONCAT11(string_ptr[1], string_ptr[0]);
+          loop_counter = string_count; /* Use string_count instead of re-reading */
+        } else {
+          log_warning("lookup_command: string_ptr out of bounds for command_id read (offset=0x%x)", command_ptr_offset);
+          break;
+        }
         #endif
       } else {
-        log_warning("lookup_command: command_ptr_offset (0x%x) out of bounds, skipping entry", command_ptr_offset);
-        fprintf(stderr, "lookup_command: command_ptr_offset (0x%x) + 2 > pool_size (0x%x) - skipping entry\n", 
-                command_ptr_offset, (unsigned int)g_gameState->memory_pool_size);
-        fflush(stderr);
-        command_id = 0; /* Reset to 0 if offset out of bounds */
-        loop_counter = loop_counter + 1;
-        string_offset = string_offset + string_len + 1 + 2; /* Advance to next entry */
-        continue; /* Continue to next iteration instead of breaking */
+        log_warning("lookup_command: command_ptr_offset (0x%x) out of bounds", command_ptr_offset);
+        break;
       }
     }
     else {
-      /* No match - either comparison failed or lengths don't match (prefix match rejection) */
-      if (compare_result == 0 && command_str_len != string_len) {
-        log_info("lookup_command: Prefix match rejected (compare_result=0 but lengths differ: command=%d, table=%d)", 
-                 command_str_len, string_len);
-        fprintf(stderr, "lookup_command: Prefix match rejected - command length=%d, table length=%d\n", 
-                command_str_len, string_len);
-        fflush(stderr);
-      } else {
-        log_info("lookup_command: No match (compare_result=%d, command_len=%d, table_len=%d), advancing offset (current=0x%x)", 
-                 compare_result, command_str_len, string_len, string_offset);
-        fprintf(stderr, "lookup_command: No match (compare_result=%d, lengths: cmd=%d, tbl=%d), advancing to next entry\n", 
-                compare_result, command_str_len, string_len);
-        fflush(stderr);
-      }
+      log_info("lookup_command: No match (compare_result=%d), advancing offset (current=0x%x, string_len=%d, SIZE_STRING_ENTRY=%d)", 
+               compare_result, string_offset, string_len, SIZE_STRING_ENTRY);
+      fprintf(stderr, "lookup_command: No match (compare_result=%d), advancing to next entry\n", compare_result);
+      fflush(stderr);
       /* FIXED: Skip to next entry: string_len (text) + 1 (null) + 2 (command_id) = string_len + 3 */
-      /* Validate offset advancement won't cause overflow */
-      if (string_len > 0 && string_len <= 256 && 
-          string_offset + string_len + 3 < g_gameState->memory_pool_size) {
-        string_offset = string_offset + string_len + 1 + 2;
-      } else {
-        /* Safe increment if string_len is invalid */
-        string_offset = string_offset + 10;
-      }
-      loop_counter = loop_counter + 1; /* Increment loop counter */
-      /* Logging wrapped in exception handling to avoid exceptions during logging */
-      #ifdef _WIN32
-      __try {
-        log_info("lookup_command: New string_offset = 0x%x, loop_counter = %d", string_offset, loop_counter);
-        fprintf(stderr, "lookup_command: New offset=0x%x, loop_counter=%d\n", string_offset, loop_counter);
-        fflush(stderr);
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        /* Logging exception - non-fatal, continue */
-      }
-      #else
+      string_offset = string_offset + string_len + 1 + 2;
+      loop_counter = loop_counter + 1; /* Increment loop counter - FIXED: was incorrectly using MEM_STACK_VALUE_7 */
       log_info("lookup_command: New string_offset = 0x%x, loop_counter = %d", string_offset, loop_counter);
       fprintf(stderr, "lookup_command: New offset=0x%x, loop_counter=%d\n", string_offset, loop_counter);
       fflush(stderr);
-      #endif
     }
   }
   
-  /* Log return value before returning (inside try block) - wrap in exception handling */
-  #ifdef _WIN32
-  __try {
-    log_info("lookup_command: Returning command_id = %d for command_string_ptr = 0x%x", command_id, (uintptr_t)command_string_ptr);
-    fprintf(stderr, "lookup_command: Returning command_id = %d\n", command_id);
-    fflush(stderr);
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    /* Logging exception is non-fatal - just continue to return */
-    command_id = (command_id != 0) ? command_id : 0; /* Ensure command_id is set */
-  }
-  #else
+  /* Log return value before returning (inside try block) */
   log_info("lookup_command: Returning command_id = %d for command_string_ptr = 0x%x", command_id, (uintptr_t)command_string_ptr);
   fprintf(stderr, "lookup_command: Returning command_id = %d\n", command_id);
   fflush(stderr);
-  #endif
   
-  /* Display "unknown command" message if command not found - DISABLED to avoid exceptions */
-  /* Message display is not essential for lookup functionality and causes test failures */
+  /* Display "unknown command" message if command not found - but don't let exception propagate */
+  /* FIXED: Only try to display message if we haven't already had an exception */
+  if (command_id == 0) {
+    #ifdef _WIN32
+    __try {
+      display_message_wrapper_2(MSG_UNKNOWN_COMMAND, command_string_ptr);
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+      /* Exception in display_message_wrapper_2 is non-fatal - just log it and continue */
+      log_exception_details(GetExceptionCode(), "lookup_command: display_message_wrapper_2 (non-fatal)", __FILE__, __LINE__);
+      fprintf(stderr, "lookup_command: display_message_wrapper_2 exception (non-fatal) - continuing to return 0\n");
+      fflush(stderr);
+      /* Don't propagate exception - continue to return command_id (0) */
+      /* The exception is caught, command_id is already 0, so just return normally */
+    }
+    #else
+    display_message_wrapper_2(MSG_UNKNOWN_COMMAND, command_string_ptr);
+    #endif
+  }
   
   #ifdef _WIN32
   } __except(EXCEPTION_EXECUTE_HANDLER) {
     /* Outer exception handler - catch any exceptions from the entire lookup function */
-    /* CRITICAL FIX: Return 0 immediately without any operations that might throw exceptions */
-    /* Don't call GetExceptionCode(), printf, log functions, or any other operations */
-    /* Just return 0 to indicate command not found - this fully swallows the exception */
+    /* If we get here, it means an exception occurred that wasn't caught by inner handlers */
+    /* This is non-fatal - just return 0 to indicate command not found */
+    log_exception_details(GetExceptionCode(), "lookup_command: outer exception handler (non-fatal)", __FILE__, __LINE__);
+    fprintf(stderr, "lookup_command: Outer exception handler caught exception (0x%x) - returning 0 (non-fatal)\n", GetExceptionCode());
+    fflush(stderr);
+    /* Don't propagate exception - return 0 to indicate command not found */
+    /* This ensures the exception is fully swallowed and doesn't propagate to caller */
     return 0;
   }
   #endif
   
-  /* Final return - command_id is already set (0 if no match, or the matched ID) */
+  log_info("lookup_command: Returning command_id = %d for command_string_ptr = 0x%x", command_id, (uintptr_t)command_string_ptr);
+  fprintf(stderr, "lookup_command: Returning command_id = %d\n", command_id);
+  fflush(stderr);
+  
   return command_id;
 }
 
@@ -2505,18 +2357,7 @@ undefined2 execute_command(uint *command_params,int has_object)
   __try {
   #endif
   
-  /* FIXED: Make setup_function_context_wrapper() non-fatal - continue even if it fails */
-  /* Similar to lookup_command() - setup failures shouldn't prevent command execution */
-  #ifdef _WIN32
-  __try {
-    setup_function_context_wrapper();
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "execute_command: setup_function_context_wrapper (non-fatal)", __FILE__, __LINE__);
-    /* Continue execution - setup might fail but command execution can still work */
-  }
-  #else
   setup_function_context_wrapper();
-  #endif
   
   /* Validate command_params */
   if (command_params == NULL || 
@@ -2530,33 +2371,12 @@ undefined2 execute_command(uint *command_params,int has_object)
   if (((*command_params & CMD_FLAG_REQUIRE_OBJECT) == 0) || (has_object != 1)) {
     stack_param = command_params;
     stack_value = MEM_STACK_VALUE_4;
-    /* FIXED: Wrap check_command_conditions_wrapper() in exception handling */
-    #ifdef _WIN32
-    __try {
-      loop_counter = check_command_conditions_wrapper();
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "execute_command: check_command_conditions_wrapper (non-fatal)", __FILE__, __LINE__);
-      loop_counter = 0; /* Default to conditions not met, return 1 */
-    }
-    #else
     loop_counter = check_command_conditions_wrapper();
-    #endif
-    
     if (loop_counter == 0) {
       command_result = 1;
     }
     else {
-      /* FIXED: Wrap process_game_action_wrapper() in exception handling */
-      #ifdef _WIN32
-      __try {
-        command_result = process_game_action_wrapper();
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_exception_details(GetExceptionCode(), "execute_command: process_game_action_wrapper (non-fatal)", __FILE__, __LINE__);
-        command_result = 0; /* Default on exception */
-      }
-      #else
       command_result = process_game_action_wrapper();
-      #endif
     }
   }
   else {
@@ -2835,16 +2655,11 @@ undefined2 execute_command(uint *command_params,int has_object)
   
   #ifdef _WIN32
   } __except(EXCEPTION_EXECUTE_HANDLER) {
-    /* Outer exception handler - catch any exceptions from the entire function */
-    /* CRITICAL FIX: Return 0 immediately without any operations that might throw exceptions */
-    /* Don't call GetExceptionCode(), printf, log functions, or any other operations */
-    /* Just return 0 to indicate command execution failed - this fully swallows the exception */
-    command_result = 0;
-    return 0;
+    log_exception_details(GetExceptionCode(), "execute_command", __FILE__, __LINE__);
+    return 0; /* Return 0 on exception */
   }
   #endif
   
-  /* Final return - command_result is already set */
   return command_result;
 }
 
@@ -2859,123 +2674,34 @@ undefined2 handle_special_command(undefined2 command_id)
   undefined2 unaff_DS;
   undefined display_mode_flag;
   
-  /* FIXED: Make setup_function_context_wrapper() non-fatal - continue even if it fails */
-  #ifdef _WIN32
-  __try {
-    setup_function_context_wrapper();
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "handle_special_command: setup_function_context_wrapper (non-fatal)", __FILE__, __LINE__);
-    /* Continue execution - setup might fail but command handling can still work */
-  }
-  #else
   setup_function_context_wrapper();
-  #endif
-  
-  /* FIXED: Add outer exception handler around entire function body to catch exceptions in core logic */
-  #ifdef _WIN32
-  __try {
-  #endif
-  
   result_value = 2;
   display_mode_flag = 0;
   switch(command_id) {
   case COMMAND_SPECIAL_1:
-    /* FIXED: Add exception handling around display_inventory_wrapper() */
-    #ifdef _WIN32
-    __try {
-      display_inventory_wrapper();
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "handle_special_command: display_inventory_wrapper (non-fatal)", __FILE__, __LINE__);
-      /* Continue - inventory display failure shouldn't prevent command from completing */
-    }
-    #else
     display_inventory_wrapper();
-    #endif
     break;
   case COMMAND_SPECIAL_2:
-    /* FIXED: Add exception handling around set_video_mode() and refresh_display_wrapper_1() */
-    #ifdef _WIN32
-    __try {
-      set_video_mode(VIDEO_MODE_TEXT);
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "handle_special_command: set_video_mode (non-fatal)", __FILE__, __LINE__);
-    }
-    __try {
-      refresh_display_wrapper_1(0);
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "handle_special_command: refresh_display_wrapper_1 (non-fatal)", __FILE__, __LINE__);
-    }
-    #else
     set_video_mode(VIDEO_MODE_TEXT);
     refresh_display_wrapper_1(0);
-    #endif
     break;
   case COMMAND_SPECIAL_3:
-    /* FIXED: Add exception handling around display_message() */
-    #ifdef _WIN32
-    __try {
-      display_message(MSG_SPECIAL_ACTION_1);
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "handle_special_command: display_message (non-fatal)", __FILE__, __LINE__);
-    }
-    #else
     display_message(MSG_SPECIAL_ACTION_1);
-    #endif
-    if (MEM_SPECIAL_FLAG + 4 <= g_gameState->memory_pool_size) {
-      MEM_WRITE32(MEM_SPECIAL_FLAG, VALUE_FALSE);
-    }
+    MEM_WRITE32(MEM_SPECIAL_FLAG, VALUE_FALSE);
     break;
   case COMMAND_SPECIAL_4:
-    /* FIXED: Add exception handling around display_message() */
-    #ifdef _WIN32
-    __try {
-      display_message(MSG_SPECIAL_ACTION_2);
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "handle_special_command: display_message (non-fatal)", __FILE__, __LINE__);
-    }
-    #else
     display_message(MSG_SPECIAL_ACTION_2);
-    #endif
-    if (MEM_SPECIAL_FLAG + 4 <= g_gameState->memory_pool_size) {
-      MEM_WRITE32(MEM_SPECIAL_FLAG, VALUE_TRUE);
-    }
+    MEM_WRITE32(MEM_SPECIAL_FLAG, VALUE_TRUE);
     break;
   case COMMAND_SPECIAL_9:
     display_mode_flag = 1;
   case COMMAND_SPECIAL_6:
-    /* FIXED: Add exception handling around update_display_mode() */
-    #ifdef _WIN32
-    __try {
-      update_display_mode(display_mode_flag);
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "handle_special_command: update_display_mode (non-fatal)", __FILE__, __LINE__);
-    }
-    #else
     update_display_mode(display_mode_flag);
-    #endif
     break;
   case COMMAND_SPECIAL_7:
-    /* FIXED: Add exception handling around process_game_action_wrapper_int() */
-    #ifdef _WIN32
-    __try {
-      result_value = (int)(uintptr_t)process_game_action_wrapper_int(MEM_ACTION_OFFSET_6);
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "handle_special_command: process_game_action_wrapper_int (non-fatal)", __FILE__, __LINE__);
-      /* Keep result_value = 2 (default) if process_game_action fails */
-    }
-    #else
     result_value = (int)(uintptr_t)process_game_action_wrapper_int(MEM_ACTION_OFFSET_6);
-    #endif
   }
   return result_value;
-  
-  #ifdef _WIN32
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "handle_special_command: core logic exception", __FILE__, __LINE__);
-    /* Return default value on exception */
-    return 2; /* Default result_value */
-  }
-  #endif
 }
 
 
@@ -3343,21 +3069,20 @@ uint * check_command_conditions(uint *command_data,int param_count,int offset,ui
   
   #ifdef _WIN32
   } __except(EXCEPTION_EXECUTE_HANDLER) {
-    /* CRITICAL FIX: Simplified outer exception handler - similar to lookup_command and execute_command */
-    /* If string_ptr was already set (e.g., from NULL command_data path), preserve it */
-    /* Otherwise, set it to a safe default */
-    /* CRITICAL: Don't perform any operations that might throw nested exceptions (no logging, no GetExceptionCode) */
-    if (string_ptr == NULL) {
-      /* Only set string_ptr if it's NULL - preserve it if already set */
-      if (g_gameState != NULL && g_gameState->memory_pool != NULL) {
-        if (MEM_STRING_PTR_1 + 4 <= g_gameState->memory_pool_size) {
-          string_ptr = (uint *)((uint8_t*)g_gameState->memory_pool + MEM_STRING_PTR_1);
-        } else if (0x1000 + 4 <= g_gameState->memory_pool_size) {
-          string_ptr = (uint *)((uint8_t*)g_gameState->memory_pool + 0x1000);
-        }
+    log_exception_details(GetExceptionCode(), "check_command_conditions", __FILE__, __LINE__);
+    fprintf(stderr, "ERROR: check_command_conditions: Outer exception handler caught exception 0x%x\n", 
+            GetExceptionCode());
+    fflush(stderr);
+    /* Return a safe default string pointer on exception */
+    if (g_gameState != NULL && g_gameState->memory_pool != NULL) {
+      if (MEM_STRING_PTR_1 + 4 <= g_gameState->memory_pool_size) {
+        string_ptr = (uint *)((uint8_t*)g_gameState->memory_pool + MEM_STRING_PTR_1);
+      } else {
+        string_ptr = (uint *)((uint8_t*)g_gameState->memory_pool + 0x1000); /* Safe default */
       }
+    } else {
+      string_ptr = NULL;
     }
-    /* Return string_ptr (either preserved value or default) - don't do anything else */
   }
   #endif
   
@@ -3409,41 +3134,6 @@ static int validate_and_process_parameters(uint *params, int count, int offset, 
 int process_command_parameters(uint *params,int count,int offset,int result_ptr)
 
 {
-#ifdef _WIN32
-  /* Simplified Windows version - stub for testing */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return 0;
-  }
-  
-  log_info("process_command_parameters: count=%d, offset=%d, result_ptr=0x%x (Windows stub)", 
-           count, offset, result_ptr);
-  
-  setup_function_context_wrapper();
-  
-  /* Validate result_ptr is within memory pool */
-  if (result_ptr < 0 || result_ptr >= (int)g_gameState->memory_pool_size) {
-    log_warning("process_command_parameters: result_ptr (%d) out of bounds", result_ptr);
-    return 0;
-  }
-  
-  /* Simulate parameter processing by setting default values in result structure */
-  /* The result_ptr points to a structure in memory_pool that needs to be initialized */
-  int *result_ptr_actual = (int *)(g_gameState->memory_pool + result_ptr);
-  
-  /* Initialize result structure with safe defaults */
-  if (result_ptr + 0x20 < (int)g_gameState->memory_pool_size) {
-    result_ptr_actual[0] = 0;  /* param_flag */
-    result_ptr_actual[1] = 0;  /* reserved */
-    result_ptr_actual[2] = 0;  /* additional flags */
-    result_ptr_actual[OFFSET_PARAM_E] = 0;  /* param E */
-    result_ptr_actual[OFFSET_PARAM_1A] = 0; /* param 1A */
-  }
-  
-  /* Return the current_index (simulated) */
-  return count; /* Simple stub: return count as the "processed" index */
-  
-#else
-  /* Original DOS implementation */
   uint param_flag;
   undefined2 unaff_DS;
   int remaining_count;
@@ -3451,250 +3141,74 @@ int process_command_parameters(uint *params,int count,int offset,int result_ptr)
   int param_offset;
   int current_index;
   
-  #ifdef _WIN32
-  __try {
-  #endif
-  
-  /* Validate parameters */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL || params == NULL) {
-    log_warning("process_command_parameters: Invalid parameters (params=%p, g_gameState=%p)", (void*)params, (void*)g_gameState);
-    #ifdef _WIN32
-    return 0;
-    #else
-    return 0;
-    #endif
-  }
-  
-  /* Validate params pointer is within memory pool */
-  uintptr_t params_offset = (uintptr_t)params - (uintptr_t)g_gameState->memory_pool;
-  if (params_offset >= g_gameState->memory_pool_size) {
-    log_warning("process_command_parameters: params pointer (offset 0x%x) out of bounds", (unsigned int)params_offset);
-    #ifdef _WIN32
-    return 0;
-    #else
-    return 0;
-    #endif
-  }
-  
-  /* Validate result_ptr is within memory pool */
-  if (result_ptr < 0 || result_ptr >= (int)g_gameState->memory_pool_size) {
-    log_warning("process_command_parameters: result_ptr (%d) out of bounds", result_ptr);
-    #ifdef _WIN32
-    return 0;
-    #else
-    return 0;
-    #endif
-  }
-  
-  /* FIXED: Make setup_function_context_wrapper() non-fatal - continue even if it fails */
-  /* Similar to process_commands() and execute_command() - setup failures shouldn't prevent parameter processing */
-  #ifdef _WIN32
-  __try {
-    setup_function_context_wrapper();
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "process_command_parameters: setup_function_context_wrapper (non-fatal)", __FILE__, __LINE__);
-    /* Continue execution - setup might fail but parameter processing can still work */
-  }
-  #else
   setup_function_context_wrapper();
-  #endif
-  
   remaining_count = count;
   current_index = 0;
-  #ifdef _WIN32
-  __try {
-    param_flag = *params;
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "process_command_parameters: *params access", __FILE__, __LINE__);
-    return 0;
-  }
-  #else
   param_flag = *params;
-  #endif
   if ((count != 0) && ((param_flag & BIT_MASK_4096) != 0)) {
-    if (count >= 2) {
-      *(uint *)(result_ptr + 2) = param_flag;
-      #ifdef _WIN32
-      __try {
-        current_index = params[1] + offset;
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_exception_details(GetExceptionCode(), "process_command_parameters: params[1] access", __FILE__, __LINE__);
-        return 0;
-      }
-      #else
-      current_index = params[1] + offset;
-      #endif
-      param_offset = result_ptr + 4;
-      param_index = MEM_ACTION_OFFSET_4;
-      copy_string_data_wrapper_0();
-      remaining_count = count + -1;
-      params = params + 2;
-    }
+    *(uint *)(result_ptr + 2) = param_flag;
+    current_index = params[1] + offset;
+    param_offset = result_ptr + 4;
+    param_index = MEM_ACTION_OFFSET_4;
+    copy_string_data_wrapper_0();
+    remaining_count = count + -1;
+    params = params + 2;
   }
-  if (remaining_count < 3) {
-    /* Handle cases where remaining_count < 3 - skip params[OFFSET_PARAM_2] access */
+  if ((remaining_count < 3) || (params[OFFSET_PARAM_2] != COMMAND_STRING_2)) {
     if ((remaining_count == 1) &&
-       ((*(int *)(result_ptr + OFFSET_PARAM_1A) != 0))) {
-      #ifdef _WIN32
-      __try {
-        param_flag = params[current_index * SIZE_WORD];
-        if ((param_flag & BIT_MASK_2048) != 0) {
-          *(uint *)(result_ptr + OFFSET_PARAM_E) = param_flag;
-          param_offset = current_index;
-          current_index = current_index + 1;
-          /* Phase 4 Goto Elimination: Skip to validation (skip setting 0x1a to 0xffff) */
-          return validate_and_process_parameters(params, count, offset, result_ptr, &current_index, param_index, param_offset);
-        }
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_exception_details(GetExceptionCode(), "process_command_parameters: params[current_index * SIZE_WORD] access (remaining_count=1)", __FILE__, __LINE__);
-        return 0;
-      }
-      #else
-      param_flag = params[current_index * SIZE_WORD];
-      if ((param_flag & BIT_MASK_2048) != 0) {
-        *(uint *)(result_ptr + OFFSET_PARAM_E) = param_flag;
-        param_offset = current_index;
-        current_index = current_index + 1;
-        return validate_and_process_parameters(params, count, offset, result_ptr, &current_index, param_index, param_offset);
-      }
-      #endif
+       ((*(int *)(result_ptr + OFFSET_PARAM_1A) != 0 && (param_flag = params[current_index * SIZE_WORD], (param_flag & BIT_MASK_2048) != 0)))) {
+      *(uint *)(result_ptr + OFFSET_PARAM_E) = param_flag;
+      param_offset = current_index;
+      current_index = current_index + 1;
+      /* Phase 4 Goto Elimination: Skip to validation (skip setting 0x1a to 0xffff) */
+      return validate_and_process_parameters(params, count, offset, result_ptr, &current_index, param_index, param_offset);
     }
     if (remaining_count == 0) {
       /* Phase 4 Goto Elimination: Skip to validation (skip setting 0x1a to 0xffff) */
-      #ifdef _WIN32
-      __try {
-        return validate_and_process_parameters(params, count, offset, result_ptr, &current_index, param_index, param_offset);
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_exception_details(GetExceptionCode(), "process_command_parameters: validate_and_process_parameters (remaining_count=0)", __FILE__, __LINE__);
-        return 0;
-      }
-      #else
-      return validate_and_process_parameters(params, count, offset, result_ptr, &current_index, param_index, param_offset);
-      #endif
-    }
-    if ((1 < remaining_count) && (remaining_count >= 2)) {
-      /* Can safely access params[OFFSET_PARAM_2] when remaining_count >= 2 */
-      #ifdef _WIN32
-      __try {
-        if ((params[OFFSET_PARAM_2] & BIT_MASK_8192) != 0) {
-          param_flag = params[current_index * SIZE_WORD];
-          *(uint *)(result_ptr + OFFSET_PARAM_E) = param_flag;
-          if ((param_flag & BIT_MASK_2048) == 0) {
-            *(uint16_t*)(result_ptr + OFFSET_PARAM_E) = RETURN_VALUE_ERROR;
-          }
-          else {
-            param_offset = current_index;
-            current_index = current_index + 1;
-          }
-        }
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_exception_details(GetExceptionCode(), "process_command_parameters: params[OFFSET_PARAM_2] or params[current_index * SIZE_WORD] access", __FILE__, __LINE__);
-        /* Continue execution */
-      }
-      #else
-      if ((params[OFFSET_PARAM_2] & BIT_MASK_8192) != 0) {
-        param_flag = params[current_index * SIZE_WORD];
-        *(uint *)(result_ptr + OFFSET_PARAM_E) = param_flag;
-        if ((param_flag & BIT_MASK_2048) == 0) {
-          *(uint16_t*)(result_ptr + OFFSET_PARAM_E) = RETURN_VALUE_ERROR;
-        }
-        else {
-          param_offset = current_index;
-          current_index = current_index + 1;
-        }
-      }
-      #endif
-    }
-    #ifdef _WIN32
-    __try {
-      param_flag = params[current_index * 2];
-      *(uint *)(result_ptr + OFFSET_PARAM_1A) = param_flag;
-      if ((param_flag & BIT_MASK_8192) != 0) {
-        param_index = current_index;
-        current_index = current_index + 1;
-        /* Phase 4 Goto Elimination: Skip to validation (skip setting 0x1a to 0xffff) */
-        return validate_and_process_parameters(params, count, offset, result_ptr, &current_index, param_index, param_offset);
-      }
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "process_command_parameters: params[current_index * 2] access", __FILE__, __LINE__);
-      return 0;
-    }
-    #else
-    param_flag = params[current_index * 2];
-    *(uint *)(result_ptr + OFFSET_PARAM_1A) = param_flag;
-    if ((param_flag & BIT_MASK_8192) != 0) {
-      param_index = current_index;
-      current_index = current_index + 1;
       return validate_and_process_parameters(params, count, offset, result_ptr, &current_index, param_index, param_offset);
     }
-    #endif
-  }
-  else {
-    #ifdef _WIN32
-    __try {
-      if (params[OFFSET_PARAM_2] != COMMAND_STRING_2) {
-        current_index = 3;
-        param_flag = params[OFFSET_PARAM_4];
-        *(uint *)(result_ptr + OFFSET_PARAM_E) = param_flag;
-        if ((param_flag & BIT_MASK_2048) == 0) {
-          *(uint16_t*)(result_ptr + OFFSET_PARAM_E) = RETURN_VALUE_ERROR;
-        }
-        else {
-          param_offset = 2;
-        }
-        param_flag = *params;
-        *(uint *)(result_ptr + OFFSET_PARAM_1A) = param_flag;
-        if ((param_flag & BIT_MASK_8192) != 0) {
-          param_index = 0;
-          /* Phase 4 Goto Elimination: Skip to validation (skip setting 0x1a to 0xffff) */
-          return validate_and_process_parameters(params, count, offset, result_ptr, &current_index, param_index, param_offset);
-        }
-      }
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "process_command_parameters: params[OFFSET_PARAM_2] or params[OFFSET_PARAM_4] access", __FILE__, __LINE__);
-      return 0;
-    }
-    #else
-    if (params[OFFSET_PARAM_2] != COMMAND_STRING_2) {
-      current_index = 3;
-      param_flag = params[OFFSET_PARAM_4];
+    if ((1 < remaining_count) && ((params[OFFSET_PARAM_2] & BIT_MASK_8192) != 0)) {
+      param_flag = params[current_index * SIZE_WORD];
       *(uint *)(result_ptr + OFFSET_PARAM_E) = param_flag;
       if ((param_flag & BIT_MASK_2048) == 0) {
         *(uint16_t*)(result_ptr + OFFSET_PARAM_E) = RETURN_VALUE_ERROR;
       }
       else {
-        param_offset = 2;
-      }
-      param_flag = *params;
-      *(uint *)(result_ptr + OFFSET_PARAM_1A) = param_flag;
-      if ((param_flag & BIT_MASK_8192) != 0) {
-        param_index = 0;
-        return validate_and_process_parameters(params, count, offset, result_ptr, &current_index, param_index, param_offset);
+        param_offset = current_index;
+        current_index = current_index + 1;
       }
     }
-    #endif
+    param_flag = params[current_index * 2];
+    *(uint *)(result_ptr + OFFSET_PARAM_1A) = param_flag;
+    if ((param_flag & BIT_MASK_8192) != 0) {
+      param_index = current_index;
+      current_index = current_index + 1;
+      /* Phase 4 Goto Elimination: Skip to validation (skip setting 0x1a to 0xffff) */
+      return validate_and_process_parameters(params, count, offset, result_ptr, &current_index, param_index, param_offset);
+    }
+  }
+  else {
+    current_index = 3;
+    param_flag = params[OFFSET_PARAM_4];
+    *(uint *)(result_ptr + OFFSET_PARAM_E) = param_flag;
+    if ((param_flag & BIT_MASK_2048) == 0) {
+      *(uint16_t*)(result_ptr + OFFSET_PARAM_E) = RETURN_VALUE_ERROR;
+    }
+    else {
+      param_offset = 2;
+    }
+    param_flag = *params;
+    *(uint *)(result_ptr + OFFSET_PARAM_1A) = param_flag;
+    if ((param_flag & BIT_MASK_8192) != 0) {
+      param_index = 0;
+      /* Phase 4 Goto Elimination: Skip to validation (skip setting 0x1a to 0xffff) */
+      return validate_and_process_parameters(params, count, offset, result_ptr, &current_index, param_index, param_offset);
+    }
   }
   *(uint16_t*)(result_ptr + OFFSET_PARAM_1A) = RETURN_VALUE_ERROR;
   
   /* Phase 4 Goto Elimination: Use helper function for validation */
-  #ifdef _WIN32
-  __try {
-    return validate_and_process_parameters(params, count, offset, result_ptr, &current_index, param_index, param_offset);
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "process_command_parameters: validate_and_process_parameters", __FILE__, __LINE__);
-    return 0;
-  }
-  #else
   return validate_and_process_parameters(params, count, offset, result_ptr, &current_index, param_index, param_offset);
-  #endif
-  
-  #ifdef _WIN32
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "process_command_parameters", __FILE__, __LINE__);
-    return 0; /* Return 0 on exception */
-  }
-  #endif
-#endif /* !_WIN32 - end of DOS implementation */
 }
 
 
@@ -3704,116 +3218,13 @@ int process_command_parameters(uint *params,int count,int offset,int result_ptr)
 undefined2 match_game_objects(uint *command_data,uint *result_ptr,char *object_name)
 
 {
-#ifdef _WIN32
-  /* Enhanced Windows version with full object matching logic */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    log_error("match_game_objects: Game state not initialized");
-    return 0;
-  }
-  
-  __try {
-    /* Validate parameters */
-    if (command_data == NULL) {
-      log_warning("match_game_objects: command_data is NULL");
-      return 2; /* Continue */
-    }
-    
-    /* Check if this is an empty command */
-    if (command_data[CHAR_CARRIAGE_RETURN] == RETURN_VALUE_STOP) {
-      if (object_name == NULL || *object_name == '\0') {
-        /* No object specified - display error message */
-        display_message(MSG_NO_OBJECT_SPECIFIED);
-        return 2; /* Continue */
-      }
-      
-      /* Display "can't see that here" message */
-      display_message(MSG_CANT_SEE_OBJECT);
-      return 2; /* Continue */
-    }
-    
-    /* Get current location for object searching */
-    uint current_location = MEM_READ32(MEM_LOCATION_DATA);
-    uintptr_t location_offset = current_location * SIZE_LOCATION_ENTRY + MEM_READ32(MEM_DATA_BASE);
-    
-    /* Validate location offset */
-    if (location_offset + SIZE_LOCATION_ENTRY >= g_gameState->memory_pool_size) {
-      log_warning("match_game_objects: location_offset (0x%x) out of bounds", (unsigned int)location_offset);
-      return 2; /* Continue */
-    }
-    
-    /* Search for objects in current location */
-    byte *location_list = g_gameState->memory_pool + location_offset;
-    uint match_count_location = find_matching_objects(location_list, (uint)(uintptr_t)command_data, MEM_OBJECT_BUFFER);
-    
-    /* Search for objects in inventory */
-    uint match_count_inventory = find_matching_objects(
-      g_gameState->memory_pool + MEM_LOCATION_BUFFER, 
-      (uint)(uintptr_t)command_data, 
-      MEM_OBJECT_BUFFER + match_count_location
-    );
-    
-    uint total_matches = match_count_location + match_count_inventory;
-    
-    log_info("match_game_objects: Found %d matches (%d in location, %d in inventory)", 
-             total_matches, match_count_location, match_count_inventory);
-    
-    /* Handle match results */
-    if (total_matches == 0) {
-      /* Check if we should display "can't see that" message */
-      if ((command_data[OFFSET_PARAM_D] != MEM_READ32(MEM_STATUS_FLAG)) &&
-          ((command_data[OFFSET_PARAM_D] & BIT_MASK_32768) == 0)) {
-        display_message(MSG_NO_OBJECT_FOUND);
-        return 3; /* Error */
-      }
-      return 2; /* Continue */
-    }
-    else if (total_matches == 1) {
-      /* Single match - use it */
-      *command_data = (uint)g_gameState->memory_pool[MEM_OBJECT_BUFFER];
-      log_info("match_game_objects: Single match - object ID %d", *command_data);
-      return 1; /* Success */
-    }
-    else {
-      /* Multiple matches - need disambiguation */
-      log_info("match_game_objects: Multiple matches (%d) - need disambiguation", total_matches);
-      display_message(MSG_WHICH_OBJECT);
-      
-      /* Store match count for later disambiguation */
-      MEM_WRITE32(MEM_MATCH_COUNT, total_matches);
-      
-      return 2; /* Continue - need more input */
-    }
-    
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "match_game_objects", __FILE__, __LINE__);
-    return 2; /* Continue on error */
-  }
-  
-#else
-  /* Original DOS implementation */
   int param_count;
   undefined2 unaff_DS;
   int match_done;
   uint *string_ptr;
   undefined2 result_value;
   
-  /* FIXED: Make setup_function_context_wrapper() non-fatal - continue even if it fails */
-  #ifdef _WIN32
-  __try {
-    setup_function_context_wrapper();
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "match_game_objects: setup_function_context_wrapper (non-fatal)", __FILE__, __LINE__);
-    /* Continue execution - setup might fail but object matching can still work */
-  }
-  #else
   setup_function_context_wrapper();
-  #endif
-  
-  /* FIXED: Add outer exception handler around entire function body to catch exceptions in core logic */
-  #ifdef _WIN32
-  __try {
-  #endif
-  
   result_value = 2;
   string_ptr = (uint *)((uint8_t*)g_gameState->memory_pool + RETURN_VALUE_STOP);
   match_done = 0;
@@ -3823,94 +3234,33 @@ undefined2 match_game_objects(uint *command_data,uint *result_ptr,char *object_n
       /* Phase 4 Goto Elimination: Jump directly to display message block */
       result_ptr = command_data + OFFSET_PARAM_E;
       match_done = MEM_ACTION_OFFSET_7;
-      /* FIXED: Add exception handling around display_message_wrapper_2() */
-      #ifdef _WIN32
-      __try {
-        display_message_wrapper_2((uint)(uintptr_t)string_ptr, (uint)(uintptr_t)result_ptr);
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_exception_details(GetExceptionCode(), "match_game_objects: display_message_wrapper_2 (non-fatal)", __FILE__, __LINE__);
-      }
-      #else
       display_message_wrapper_2((uint)(uintptr_t)string_ptr, (uint)(uintptr_t)result_ptr);
-      #endif
       return result_value;
     }
     match_done = RETURN_VALUE_NEGATIVE;
-    /* FIXED: Add exception handling around display_message_wrapper_3() */
-    #ifdef _WIN32
-    __try {
-      display_message_wrapper_3(MSG_ACTION_RESULT, (uint)(uintptr_t)result_ptr, (uint)(uintptr_t)object_name);
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "match_game_objects: display_message_wrapper_3 (non-fatal)", __FILE__, __LINE__);
-    }
-    #else
     display_message_wrapper_3(MSG_ACTION_RESULT, (uint)(uintptr_t)result_ptr, (uint)(uintptr_t)object_name);
-    #endif
     string_ptr = result_ptr;
   }
   while (match_done == 0) {
     if (string_ptr != NULL) {
       result_value = 1;
       string_ptr = (uint *)((uint8_t*)g_gameState->memory_pool + MEM_STRING_PTR_5);
-      /* FIXED: Add exception handling around parse_command_input_wrapper_2() and process_command_parameters_wrapper() */
-      #ifdef _WIN32
-      __try {
-        match_done = parse_command_input_wrapper_2(MEM_ACTION_OFFSET_5, MEM_STRING_PTR_5);
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_exception_details(GetExceptionCode(), "match_game_objects: parse_command_input_wrapper_2 (non-fatal)", __FILE__, __LINE__);
-        match_done = 1; /* Skip to next iteration */
-      }
-      __try {
-        param_count = process_command_parameters_wrapper(MEM_ACTION_OFFSET_5);
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_exception_details(GetExceptionCode(), "match_game_objects: process_command_parameters_wrapper (non-fatal)", __FILE__, __LINE__);
-        param_count = 0; /* Default to no params */
-      }
-      #else
       match_done = parse_command_input_wrapper_2(MEM_ACTION_OFFSET_5, MEM_STRING_PTR_5);
       param_count = process_command_parameters_wrapper(MEM_ACTION_OFFSET_5);
-      #endif
       if (param_count == 0) {
         result_value = 0;
         match_done = 1;
       }
     }
     if (match_done == 0) {
-      /* FIXED: Add exception handling around find_matching_objects() and find_matching_objects_wrapper() */
-      #ifdef _WIN32
-      __try {
-        match_done = find_matching_objects((byte*)(g_gameState->memory_pool + MEM_READ32(MEM_LOCATION_DATA) * SIZE_LOCATION_ENTRY + MEM_READ32(MEM_DATA_BASE)), (uint)(uintptr_t)command_data, MEM_OBJECT_BUFFER);
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_exception_details(GetExceptionCode(), "match_game_objects: find_matching_objects (non-fatal)", __FILE__, __LINE__);
-        match_done = 0; /* Default to no matches */
-      }
-      match_done = match_done + MEM_OBJECT_BUFFER;
-      string_ptr = command_data;
-      __try {
-        param_count = find_matching_objects_wrapper(MEM_LOCATION_BUFFER);
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_exception_details(GetExceptionCode(), "match_game_objects: find_matching_objects_wrapper (non-fatal)", __FILE__, __LINE__);
-        param_count = 0; /* Default to no matches */
-      }
-      #else
       match_done = find_matching_objects((byte*)(g_gameState->memory_pool + MEM_READ32(MEM_LOCATION_DATA) * SIZE_LOCATION_ENTRY + MEM_READ32(MEM_DATA_BASE)), (uint)(uintptr_t)command_data, MEM_OBJECT_BUFFER);
       match_done = match_done + MEM_OBJECT_BUFFER;
       string_ptr = command_data;
       param_count = find_matching_objects_wrapper(MEM_LOCATION_BUFFER);
-      #endif
       if (((match_done + param_count == 0) && (command_data[OFFSET_PARAM_D] != MEM_READ32(MEM_STATUS_FLAG))) &&
          ((command_data[OFFSET_PARAM_D] & BIT_MASK_32768) == 0)) {
         string_ptr = (uint *)((uint8_t*)g_gameState->memory_pool + MEM_STRING_PTR_6);
-        /* FIXED: Add exception handling around display_message() */
-        #ifdef _WIN32
-        __try {
-          display_message(MSG_NO_OBJECT_FOUND);
-        } __except(EXCEPTION_EXECUTE_HANDLER) {
-          log_exception_details(GetExceptionCode(), "match_game_objects: display_message (non-fatal)", __FILE__, __LINE__);
-        }
-        #else
         display_message(MSG_NO_OBJECT_FOUND);
-        #endif
         match_done = 1;
         result_value = 3;
       }
@@ -3923,29 +3273,11 @@ undefined2 match_game_objects(uint *command_data,uint *result_ptr,char *object_n
         string_ptr = (uint *)((uint8_t*)g_gameState->memory_pool + MEM_STRING_PTR_7);
         /* Phase 4 Goto Elimination: Inline the display message code */
         match_done = MEM_ACTION_OFFSET_7;
-        /* FIXED: Add exception handling around display_message_wrapper_2() */
-        #ifdef _WIN32
-        __try {
-          display_message_wrapper_2((uint)(uintptr_t)string_ptr, (uint)(uintptr_t)result_ptr);
-        } __except(EXCEPTION_EXECUTE_HANDLER) {
-          log_exception_details(GetExceptionCode(), "match_game_objects: display_message_wrapper_2 (non-fatal)", __FILE__, __LINE__);
-        }
-        #else
         display_message_wrapper_2((uint)(uintptr_t)string_ptr, (uint)(uintptr_t)result_ptr);
-        #endif
       }
     }
   }
   return result_value;
-  
-  #ifdef _WIN32
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "match_game_objects: core logic exception", __FILE__, __LINE__);
-    /* Return default value on exception */
-    return 2; /* Default result_value */
-  }
-  #endif
-#endif /* !_WIN32 - end of DOS implementation */
 }
 
 
@@ -3957,112 +3289,6 @@ undefined2 match_game_objects(uint *command_data,uint *result_ptr,char *object_n
 uint find_matching_objects(byte *list_ptr,uint search_param,int buffer_offset)
 
 {
-#ifdef _WIN32
-  /* Enhanced Windows version with full object matching logic */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    log_error("find_matching_objects: Game state not initialized");
-    return 0;
-  }
-  
-  __try {
-    uint match_count = 0;
-    byte object_id;
-    
-    /* Validate pointers */
-    if (list_ptr == NULL) {
-      log_warning("find_matching_objects: list_ptr is NULL");
-      return 0;
-    }
-    
-    /* Validate buffer_offset */
-    if (buffer_offset < 0 || buffer_offset + 256 >= (int)g_gameState->memory_pool_size) {
-      log_warning("find_matching_objects: buffer_offset (0x%x) out of bounds", buffer_offset);
-      return 0;
-    }
-    
-    /* Get search parameters */
-    uintptr_t search_param_offset = (uintptr_t)search_param;
-    if (search_param_offset >= g_gameState->memory_pool_size) {
-      /* search_param might be a direct pointer, convert to offset */
-      search_param_offset = search_param - (uintptr_t)g_gameState->memory_pool;
-    }
-    
-    /* Validate search_param offset */
-    if (search_param_offset + OFFSET_PARAM_1A + 1 >= g_gameState->memory_pool_size) {
-      log_warning("find_matching_objects: search_param offset out of bounds");
-      return 0;
-    }
-    
-    byte search_flag_1 = g_gameState->memory_pool[search_param_offset + OFFSET_PARAM_E];
-    byte search_flag_2 = g_gameState->memory_pool[search_param_offset + OFFSET_PARAM_1A];
-    uint search_flags = *(uint*)(g_gameState->memory_pool + search_param_offset + OFFSET_PARAM_1A);
-    
-    /* Iterate through object list */
-    object_id = *list_ptr;
-    byte *current_list_ptr = list_ptr;
-    
-    while (object_id != 0 && match_count < 255) {
-      uint object_index = object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER);
-      
-      /* Validate object_index */
-      if (object_index + SIZE_OBJECT_ENTRY >= g_gameState->memory_pool_size) {
-        log_warning("find_matching_objects: object_index (0x%x) out of bounds", object_index);
-        break;
-      }
-      
-      bool should_match = false;
-      
-      /* Check if object matches search criteria */
-      if (search_flag_1 == 0) {
-        /* Check object type/category */
-        byte object_category = g_gameState->memory_pool[object_index + 4];
-        byte object_property = g_gameState->memory_pool[object_index + OFFSET_PARAM_5];
-        
-        if ((search_flags & BIT_MASK_2048) == 0) {
-          /* Simple category match */
-          if (object_category == search_flag_2) {
-            should_match = true;
-          }
-        } else {
-          /* Property-based match */
-          if (object_property == search_flag_2 || object_category == search_flag_2) {
-            should_match = true;
-          }
-        }
-      } else {
-        /* search_flag_1 != 0 - different matching logic */
-        should_match = true; /* Match all objects when flag is set */
-      }
-      
-      /* If object matches, add to buffer */
-      if (should_match) {
-        if (buffer_offset + match_count < (int)g_gameState->memory_pool_size) {
-          g_gameState->memory_pool[buffer_offset + match_count] = object_id;
-          match_count++;
-        } else {
-          log_warning("find_matching_objects: buffer overflow at match %d", match_count);
-          break;
-        }
-      }
-      
-      /* Move to next object in list */
-      current_list_ptr++;
-      if ((uintptr_t)current_list_ptr >= (uintptr_t)g_gameState->memory_pool + g_gameState->memory_pool_size) {
-        break;
-      }
-      object_id = *current_list_ptr;
-    }
-    
-    log_info("find_matching_objects: Found %d matching objects", match_count);
-    return match_count;
-    
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "find_matching_objects", __FILE__, __LINE__);
-    return 0;
-  }
-  
-#else
-  /* Original DOS implementation */
   byte object_id;
   int object_index;
   undefined2 unaff_DS;
@@ -4072,23 +3298,7 @@ uint find_matching_objects(byte *list_ptr,uint search_param,int buffer_offset)
   uint match_count;
   uint search_flag_1;
   
-  /* FIXED: Make setup_function_context_wrapper() non-fatal - continue even if it fails */
-  #ifdef _WIN32
-  __try {
-    setup_function_context_wrapper();
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "find_matching_objects: setup_function_context_wrapper (non-fatal)", __FILE__, __LINE__);
-    /* Continue execution - setup might fail but object finding can still work */
-  }
-  #else
   setup_function_context_wrapper();
-  #endif
-  
-  /* FIXED: Add outer exception handler around entire function body to catch exceptions in core logic */
-  #ifdef _WIN32
-  __try {
-  #endif
-  
   object_id = *list_ptr;
   match_count = 0;
   search_flag_1 = (uint)*(byte *)(search_param + OFFSET_PARAM_E);
@@ -4097,16 +3307,7 @@ uint find_matching_objects(byte *list_ptr,uint search_param,int buffer_offset)
     current_object_id = (uint)object_id;
     if (current_object_id == 0) {
       if (MEM_READ32(MEM_ERROR_FLAG) != 0) {
-        /* FIXED: Add exception handling around report_error() */
-        #ifdef _WIN32
-        __try {
-          report_error(MSG_ERROR_3);
-        } __except(EXCEPTION_EXECUTE_HANDLER) {
-          log_exception_details(GetExceptionCode(), "find_matching_objects: report_error (non-fatal)", __FILE__, __LINE__);
-        }
-        #else
         report_error(MSG_ERROR_3);
-        #endif
       }
       return match_count;
     }
@@ -4115,16 +3316,7 @@ uint find_matching_objects(byte *list_ptr,uint search_param,int buffer_offset)
       object_index = current_object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER);
       match_count = (uint)*(byte *)(object_index + 5);
       object_id_temp = (uint)*(byte *)(object_index + 4);
-      /* FIXED: Add exception handling around report_error() */
-      #ifdef _WIN32
-      __try {
-        report_error(MSG_ERROR_4);
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_exception_details(GetExceptionCode(), "find_matching_objects: report_error (non-fatal)", __FILE__, __LINE__);
-      }
-      #else
       report_error(MSG_ERROR_4);
-      #endif
       search_flag_2 = current_object_id;
     }
     /* Phase 4 Goto Elimination: Restructure conditional logic to eliminate gotos */
@@ -4167,15 +3359,6 @@ uint find_matching_objects(byte *list_ptr,uint search_param,int buffer_offset)
     }
     object_id = *(byte *)(object_id_temp * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER));
   } while( true );
-  
-  #ifdef _WIN32
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "find_matching_objects: core logic exception", __FILE__, __LINE__);
-    /* Return default value on exception */
-    return 0; /* Default match_count */
-  }
-  #endif
-#endif /* !_WIN32 - end of DOS implementation */
 }
 
 
@@ -4185,24 +3368,6 @@ uint find_matching_objects(byte *list_ptr,uint search_param,int buffer_offset)
 int * process_game_action(int *action_data)
 
 {
-  #ifdef _WIN32
-  /* Simplified Windows version - bypass complex DOS game action processing */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL || action_data == NULL) {
-    return (int *)RETURN_VALUE_CONTINUE;
-  }
-  
-  log_info("process_game_action: Processing action (Windows stub)");
-  
-  setup_function_context_wrapper();
-  
-  /* For Windows testing, just return a success value */
-  /* The actual game logic involves complex action tables, object matching, */
-  /* and handler functions which are DOS-specific */
-  
-  return (int *)RETURN_VALUE_CONTINUE;
-  
-  #else
-  /* Original DOS implementation */
   byte *flags_byte_ptr;
   int *move_counter_ptr;
   byte action_flags;
@@ -4219,23 +3384,7 @@ int * process_game_action(int *action_data)
   uint flags_value;
   int action_table_offset;
   
-  /* FIXED: Make setup_function_context_wrapper() non-fatal - continue even if it fails */
-  #ifdef _WIN32
-  __try {
-    setup_function_context_wrapper();
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "process_game_action: setup_function_context_wrapper (non-fatal)", __FILE__, __LINE__);
-    /* Continue execution - setup might fail but action processing can still work */
-  }
-  #else
   setup_function_context_wrapper();
-  #endif
-  
-  /* FIXED: Add outer exception handler around entire function body to catch exceptions in core logic */
-  #ifdef _WIN32
-  __try {
-  #endif
-  
   action_index = (uint)*(byte *)action_data;
   action_table_offset = action_index * 6;
   action_params = (int *)(uint)*(byte *)(action_table_offset + OFFSET_ACTION_PARAMS);
@@ -4246,17 +3395,7 @@ int * process_game_action(int *action_data)
   if (((action_flags & ACTION_FLAG_REQUIRE_MATCH) != 0) || (action_data[OFFSET_PARAM_13] != 0)) {
     action_params = action_data + 1;
     string_ptr = action_data + 6;
-    /* FIXED: Add exception handling around match_game_objects() */
-    #ifdef _WIN32
-    __try {
-      action_status = match_game_objects(string_ptr,action_params,action_data + 8);
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "process_game_action: match_game_objects (non-fatal)", __FILE__, __LINE__);
-      action_status = 0; /* Default to no match */
-    }
-    #else
     action_status = match_game_objects(string_ptr,action_params,action_data + 8);
-    #endif
   }
   if ((action_status != 0) && (action_status != 3)) {
     if (((uint)action_params & ACTION_FLAG_COPY_STRING) != 0) {
@@ -4264,46 +3403,18 @@ int * process_game_action(int *action_data)
       action_status = COMMAND_SPECIAL_8;
       action_params = action_data + OFFSET_PARAM_1B;
       string_ptr = (int *)((uint8_t*)g_gameState->memory_pool + MEM_STRING_PTR_8);
-      /* FIXED: Add exception handling around copy_string_data_wrapper_0() */
-      #ifdef _WIN32
-      __try {
-        copy_string_data_wrapper_0();
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_exception_details(GetExceptionCode(), "process_game_action: copy_string_data_wrapper_0 (non-fatal)", __FILE__, __LINE__);
-      }
-      #else
       copy_string_data_wrapper_0();
-      #endif
     }
     if (MEM_READ32(MEM_ERROR_FLAG) != 0) {
       action_status = action_data[OFFSET_PARAM_26];
       action_params = (int *)action_data[OFFSET_PARAM_20];
       string_ptr = (int *)((uint8_t*)g_gameState->memory_pool + MEM_STRING_PTR_9);
-      /* FIXED: Add exception handling around report_error_wrapper_0() */
-      #ifdef _WIN32
-      __try {
-        report_error_wrapper_0();
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_exception_details(GetExceptionCode(), "process_game_action: report_error_wrapper_0 (non-fatal)", __FILE__, __LINE__);
-      }
-      #else
       report_error_wrapper_0();
-      #endif
     }
     if (((flags_value & BIT_MASK_4) != 0) || (action_data[OFFSET_PARAM_26] != 0)) {
       action_params = action_data + OFFSET_PARAM_1;
       string_ptr = action_data + OFFSET_PARAM_19;
-      /* FIXED: Add exception handling around match_game_objects() */
-      #ifdef _WIN32
-      __try {
-        action_status = match_game_objects(string_ptr,action_params,action_data + OFFSET_PARAM_1B);
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_exception_details(GetExceptionCode(), "process_game_action: match_game_objects (non-fatal)", __FILE__, __LINE__);
-        action_status = 0; /* Default to no match */
-      }
-      #else
       action_status = match_game_objects(string_ptr,action_params,action_data + OFFSET_PARAM_1B);
-      #endif
     }
   }
   if (action_status == RETURN_VALUE_STOP) {
@@ -4422,16 +3533,6 @@ int * process_game_action(int *action_data)
     result_ptr = handle_location_change_wrapper(result_ptr);
   }
   return result_ptr;
-  
-  #ifdef _WIN32
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "process_game_action: core logic exception", __FILE__, __LINE__);
-    /* Return default value on exception - check for early returns first */
-    /* Note: Early returns above bypass this handler, which is correct */
-    return (int *)RETURN_VALUE_STOP; /* Default result */
-  }
-  #endif
-  #endif
 }
 
 
@@ -4457,17 +3558,6 @@ static undefined2 finalize_location_change(undefined2 result, uint current_locat
 undefined2 handle_location_change(undefined2 new_location_id)
 
 {
-  #ifdef _WIN32
-  /* Simplified Windows version - skip DOS-specific operations */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return 0;
-  }
-  /* Update location in memory for game logic compatibility */
-  MEM_WRITE32(MEM_LOCATION_DATA, new_location_id);
-  /* Return success */
-  return 0;
-  #else
-  /* Original DOS implementation */
   byte *flags_byte_ptr;
   int *int_ptr;
   uint *uint_ptr;
@@ -4640,7 +3730,6 @@ undefined2 handle_location_change(undefined2 new_location_id)
   
   /* Phase 4 Goto Elimination: Use helper function for cleanup */
   return finalize_location_change(new_location_id, current_location, location_id);
-  #endif
 }
 
 
@@ -4650,41 +3739,6 @@ undefined2 handle_location_change(undefined2 new_location_id)
 undefined2 handle_object_interaction(int object_id, int action_id, undefined2 result)
 
 {
-  #ifdef _WIN32
-  /* Simplified Windows version - bypass complex DOS object interaction logic */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return result;
-  }
-  
-  log_info("handle_object_interaction: Object %d, action %d (Windows stub)", object_id, action_id);
-  
-  setup_function_context_wrapper();
-  
-  /* Bounds check object ID */
-  uintptr_t object_ptr = object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER);
-  if (object_ptr + SIZE_OBJECT_ENTRY > g_gameState->memory_pool_size) {
-    log_warning("handle_object_interaction: Object %d out of bounds", object_id);
-    display_formatted_message(MSG_SPECIAL_ACTION_15, object_id);
-    return result;
-  }
-  
-  /* For Windows testing, just display a generic message and return */
-  /* The actual game logic involves complex flag manipulation and state changes */
-  /* which are DOS-specific and not needed for basic testing */
-  
-  /* Determine message based on action_id */
-  undefined2 message_id;
-  if (action_id == 0) {
-    message_id = MSG_SPECIAL_ACTION_16; /* Generic action message */
-  } else {
-    message_id = MSG_SPECIAL_ACTION_19; /* Generic interaction message */
-  }
-  
-  display_formatted_message(message_id, object_id);
-  return result;
-  
-  #else
-  /* Original DOS implementation */
   byte *flags_byte_ptr;
   uint object_flags_1;
   uint object_flags_2;
@@ -4748,7 +3802,6 @@ undefined2 handle_object_interaction(int object_id, int action_id, undefined2 re
   }
   display_formatted_message(message_id,object_id);
   return result;
-  #endif
 }
 
 
@@ -4758,25 +3811,6 @@ undefined2 handle_object_interaction(int object_id, int action_id, undefined2 re
 undefined2 handle_wear_command(int *command_data,undefined2 result)
 
 {
-#ifdef _WIN32
-  /* Simplified Windows version - stub for testing */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return result;
-  }
-  
-  log_info("handle_wear_command: command_data=%p, result=0x%x (Windows stub)", 
-           command_data, result);
-  
-  setup_function_context_wrapper();
-  
-  /* Simulate handling WEAR/REMOVE commands */
-  /* In a real implementation, this would handle wearing and removing clothing/armor */
-  
-  /* Return the result as a default success */
-  return result;
-  
-#else
-  /* Original DOS implementation */
   byte *flags_byte_ptr;
   uint object_id;
   uint object_flags_2;
@@ -4788,23 +3822,7 @@ undefined2 handle_wear_command(int *command_data,undefined2 result)
   uint target_object_id;
   int action_result;
   
-  /* FIXED: Make setup_function_context_wrapper() non-fatal - continue even if it fails */
-  #ifdef _WIN32
-  __try {
-    setup_function_context_wrapper();
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "handle_wear_command: setup_function_context_wrapper (non-fatal)", __FILE__, __LINE__);
-    /* Continue execution - setup might fail but wear command handling can still work */
-  }
-  #else
   setup_function_context_wrapper();
-  #endif
-  
-  /* FIXED: Add outer exception handler around entire function body to catch exceptions in core logic */
-  #ifdef _WIN32
-  __try {
-  #endif
-  
   object_id = command_data[6];
   target_object_id = command_data[MEM_POINTER_STORAGE_105];
   object_ptr = object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER);
@@ -4870,16 +3888,7 @@ undefined2 handle_wear_command(int *command_data,undefined2 result)
     target_object_id = object_id;
   }
   display_formatted_message(message_id,target_object_id);
-  
-  #ifdef _WIN32
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "handle_wear_command: core logic", __FILE__, __LINE__);
-    return result;  /* Return default on exception */
-  }
-  #endif
-  
   return result;
-#endif /* !_WIN32 - end of DOS implementation */
 }
 
 
@@ -4889,31 +3898,6 @@ undefined2 handle_wear_command(int *command_data,undefined2 result)
 undefined2 handle_open_command(int object_ptr,undefined2 result)
 
 {
-  #ifdef _WIN32
-  /* Simplified Windows version - bypass complex DOS container logic */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return result;
-  }
-  
-  log_info("handle_open_command: Opening container at ptr 0x%x (Windows stub)", object_ptr);
-  
-  setup_function_context_wrapper();
-  
-  /* Bounds check object_ptr */
-  if ((uintptr_t)object_ptr + SIZE_OBJECT_ENTRY + OFFSET_PARAM_32 >= g_gameState->memory_pool_size) {
-    log_warning("handle_open_command: object_ptr out of bounds");
-    return result;
-  }
-  
-  /* For Windows testing, just display a generic open message */
-  /* The actual game logic involves complex state management and container handling */
-  /* which are DOS-specific and not needed for basic testing */
-  
-  display_formatted_message(MSG_SPECIAL_ACTION_30, 0);
-  return result;
-  
-  #else
-  /* Original DOS implementation */
   char *state_char_ptr;
   byte *flags_byte_ptr;
   byte current_state;
@@ -4954,7 +3938,6 @@ undefined2 handle_open_command(int object_ptr,undefined2 result)
   }
   display_formatted_message(message_id,target_object_id);
   return result;
-  #endif
 }
 
 
@@ -4964,15 +3947,6 @@ undefined2 handle_open_command(int object_ptr,undefined2 result)
 undefined2 handle_close_command(int object_ptr,undefined2 result)
 
 {
-  #ifdef _WIN32
-  /* Simplified Windows version - skip DOS-specific operations */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return result;
-  }
-  /* Return success without actual operation */
-  return result;
-  #else
-  /* Original DOS implementation */
   int container_object_id;
   uint contained_object_id;
   int target_object_ptr;
@@ -5005,7 +3979,6 @@ undefined2 handle_close_command(int object_ptr,undefined2 result)
   }
   display_formatted_message(message_id,target_object_id);
   return result;
-  #endif
 }
 
 
@@ -5412,19 +4385,6 @@ undefined2 handle_remove_item(int *command_data,undefined2 result)
 undefined2 display_message_and_move(undefined2 message_id, undefined2 result)
 
 {
-  #ifdef _WIN32
-  /* Simplified Windows version - skip DOS-specific display and movement */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return RETURN_VALUE_ERROR;
-  }
-  /* Update memory state for game logic compatibility */
-  MEM_WRITE32(MEM_POINTER_STORAGE_251, 0);
-  /* Call display function (now Windows-compatible) */
-  display_formatted_message(message_id, result);
-  /* Return success without actual movement */
-  return 0;
-  #else
-  /* Original DOS implementation */
   byte *flags_byte_ptr;
   undefined2 move_result;
   undefined2 unaff_SI;
@@ -5442,7 +4402,6 @@ undefined2 display_message_and_move(undefined2 message_id, undefined2 result)
     move_result = RETURN_VALUE_ERROR;
   }
   return move_result;
-  #endif
 }
 
 
@@ -5492,25 +4451,6 @@ static undefined2 display_formatted_message_and_return(int *piVar4, uint uVar5, 
 undefined2 handle_object_command(int object_id, undefined2 command_id)
 
 {
-#ifdef _WIN32
-  /* Simplified Windows version - stub for testing */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return command_id;
-  }
-  
-  log_info("handle_object_command: object_id=%d, command_id=0x%x (Windows stub)", 
-           object_id, command_id);
-  
-  setup_function_context_wrapper();
-  
-  /* Simulate handling object commands */
-  /* In a real implementation, this would process USE, EXAMINE, etc. commands on objects */
-  
-  /* Return the command_id as a default success */
-  return command_id;
-  
-#else
-  /* Original DOS implementation */
   int base_ptr;
   int target_object_id;
   int related_object_id;
@@ -5519,23 +4459,7 @@ undefined2 handle_object_command(int object_id, undefined2 command_id)
   undefined2 message_id;
   undefined2 unaff_DS;
   
-  /* FIXED: Make setup_function_context_wrapper() non-fatal - continue even if it fails */
-  #ifdef _WIN32
-  __try {
-    setup_function_context_wrapper();
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "handle_object_command: setup_function_context_wrapper (non-fatal)", __FILE__, __LINE__);
-    /* Continue execution - setup might fail but object command handling can still work */
-  }
-  #else
   setup_function_context_wrapper();
-  #endif
-  
-  /* FIXED: Add outer exception handler around entire function body to catch exceptions in core logic */
-  #ifdef _WIN32
-  __try {
-  #endif
-  
   target_object_id = *(int *)(object_id + SIZE_OBJECT_ENTRY);
   related_object_id = *(int *)(object_id + OFFSET_PARAM_32);
   target_object_ptr = target_object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER);
@@ -5577,15 +4501,6 @@ undefined2 handle_object_command(int object_id, undefined2 command_id)
   /* Phase 4 Goto Elimination: Common cleanup code */
   MEM_WRITE32(MEM_POINTER_STORAGE_249, 4);
   return command_id;
-  
-  #ifdef _WIN32
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "handle_object_command: core logic exception", __FILE__, __LINE__);
-    /* Return default value on exception */
-    return command_id; /* Keep original command_id */
-  }
-  #endif
-#endif /* !_WIN32 - end of DOS implementation */
 }
 
 
@@ -5700,60 +4615,15 @@ undefined2 handle_put_object_in(int *command_data,undefined2 result)
 uint handle_direction_move(byte direction,uint location_id)
 
 {
-  #ifdef _WIN32
-  /* Simplified Windows version - bypass complex DOS movement logic */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return location_id;
-  }
-  
-  log_info("handle_direction_move: Moving in direction %d from location %u (Windows stub)", direction, location_id);
-  
-  setup_function_context_wrapper();
-  
-  /* For Windows testing, just return the location_id */
-  /* The actual game logic involves complex direction tables, blocking objects, */
-  /* and movement validation which are DOS-specific */
-  
-  return location_id;
-  
-  #else
-  /* Original DOS implementation */
   byte game_flags;
   bool has_blocking_object;
   int find_result;
   undefined2 unaff_DS;
   byte direction_mask;
   
-  /* FIXED: Make setup_function_context_wrapper() non-fatal - continue even if it fails */
-  #ifdef _WIN32
-  __try {
-    setup_function_context_wrapper();
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "handle_direction_move: setup_function_context_wrapper (non-fatal)", __FILE__, __LINE__);
-    /* Continue execution - setup might fail but direction move can still work */
-  }
-  #else
   setup_function_context_wrapper();
-  #endif
-  
-  /* FIXED: Add outer exception handler around entire function body to catch exceptions in core logic */
-  #ifdef _WIN32
-  __try {
-  #endif
-  
   direction_mask = (byte)(BIT_MASK_4096 >> (direction & BIT_MASK_4_BITS));
-  /* FIXED: Add exception handling around find_objects_in_location_wrapper_2() */
-  #ifdef _WIN32
-  __try {
-    find_result = find_objects_in_location_wrapper_2(MEM_READ32(MEM_DATA_BASE) + OFFSET_DATA_DA4, MEM_POINTER_STORAGE_257);
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "handle_direction_move: find_objects_in_location_wrapper_2 (non-fatal)", __FILE__, __LINE__);
-    find_result = RETURN_VALUE_STOP; /* Default to no blocking object */
-  }
-  #else
   find_result = find_objects_in_location_wrapper_2(MEM_READ32(MEM_DATA_BASE) + OFFSET_DATA_DA4, MEM_POINTER_STORAGE_257);
-  #endif
-  
   if ((find_result == RETURN_VALUE_STOP) || ((*(uint *)((uint)MEM_READ32(MEM_OBJECT_BUFFER) * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER) + OFFSET_OBJECT_PROPERTIES) & BIT_MASK_16384) != 0))
   {
     has_blocking_object = false;
@@ -5763,55 +4633,18 @@ uint handle_direction_move(byte direction,uint location_id)
   }
   game_flags = MEM_READ32(MEM_GAME_FLAGS);
   if (((game_flags & 1) == 0) && (has_blocking_object)) {
-      /* FIXED: Add exception handling around display_formatted_message() */
-      #ifdef _WIN32
-      __try {
-        display_formatted_message(MSG_OBJECT_INFO,MEM_READ32(MEM_OBJECT_BUFFER));
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_exception_details(GetExceptionCode(), "handle_direction_move: display_formatted_message (non-fatal)", __FILE__, __LINE__);
-      }
-      #else
       display_formatted_message(MSG_OBJECT_INFO,MEM_READ32(MEM_OBJECT_BUFFER));
-      #endif
   }
   else {
     if ((has_blocking_object) && ((game_flags & 1) != 0)) {
       direction_mask = BIT_MASK_LOW_8;
     }
     if ((MEM_READ32(MEM_LOCATION_TEMP) != '\0') && (direction_mask < MAX_OBJECT_ID)) {
-      /* FIXED: Add exception handling around handle_look_command() */
-      #ifdef _WIN32
-      __try {
-        handle_look_command(MEM_STRING_PTR_14,location_id);
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_exception_details(GetExceptionCode(), "handle_direction_move: handle_look_command (non-fatal)", __FILE__, __LINE__);
-      }
-      #else
       handle_look_command(MEM_STRING_PTR_14,location_id);
-      #endif
     }
-    /* FIXED: Add exception handling around move_to_location() */
-    #ifdef _WIN32
-    __try {
-      location_id = move_to_location((byte)(location_id & BIT_MASK_LOW_8), (byte)RETURN_VALUE_STOP, (uint)RETURN_VALUE_STOP, (char)RETURN_VALUE_STOP, (undefined2)RETURN_VALUE_STOP);
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "handle_direction_move: move_to_location (non-fatal)", __FILE__, __LINE__);
-      /* Keep original location_id if move fails */
-    }
-    #else
     location_id = move_to_location((byte)(location_id & BIT_MASK_LOW_8), (byte)RETURN_VALUE_STOP, (uint)RETURN_VALUE_STOP, (char)RETURN_VALUE_STOP, (undefined2)RETURN_VALUE_STOP);
-    #endif
   }
   return location_id;
-  
-  #ifdef _WIN32
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "handle_direction_move: core logic exception", __FILE__, __LINE__);
-    /* Return default value on exception */
-    return location_id; /* Keep original location_id */
-  }
-  #endif
-  #endif
 }
 
 
@@ -5821,142 +4654,6 @@ uint handle_direction_move(byte direction,uint location_id)
 undefined2 move_to_location(byte location_id, byte direction, uint message_id, char flag, undefined2 context)
 
 {
-  #ifdef _WIN32
-  /* Enhanced Windows version with full game logic */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    log_error("move_to_location: Game state not initialized");
-    return 0;
-  }
-  
-  __try {
-    uint current_location_id = (uint)location_id;
-    uint screen_id = 0;
-    byte game_flags = MEM_READ32(MEM_GAME_FLAGS);
-    
-    /* Display message if provided */
-    if (message_id != 0) {
-      display_message(message_id);
-    }
-    
-    /* Handle flag - drop all objects if set */
-    if (flag != '\0') {
-      drop_all_objects(MEM_READ32(MEM_STRING_PTR_14), 1);
-    }
-    
-    /* Validate direction */
-    if (direction >= MAX_DIRECTION_ID) {
-      /* Invalid direction - display error message */
-      uint error_msg = CONCAT11(VALUE_224, direction);
-      display_message(error_msg);
-      return context;
-    }
-    
-    /* Update location in memory */
-    MEM_WRITE32(MEM_LOCATION_DATA, direction);
-    
-    /* Calculate location pointer with bounds checking */
-    uintptr_t data_base = MEM_READ32(MEM_DATA_BASE);
-    uintptr_t location_offset = (uint)direction * ADDR_MULTIPLIER_LOCATION + data_base;
-    
-    if (location_offset + OFFSET_LOCATION_FLAGS + 1 >= g_gameState->memory_pool_size) {
-      log_error("move_to_location: Location offset out of bounds");
-      return 0;
-    }
-    
-    /* Get location flags */
-    byte direction_flags = g_gameState->memory_pool[location_offset + OFFSET_LOCATION_FLAGS];
-    
-    /* Update visit counter */
-    if (location_offset + 1 < g_gameState->memory_pool_size) {
-      g_gameState->memory_pool[location_offset + 1]++;
-    }
-    
-    /* Determine if full description should be shown */
-    byte current_location_byte = g_gameState->memory_pool[location_offset + 1];
-    if (((current_location_byte & 3) == 0) || (MEM_READ32(MEM_SPECIAL_FLAG) == 0)) {
-      screen_id = 1;
-    } else {
-      screen_id = 0;
-    }
-    
-    /* Check if location or direction requires special handling */
-    uintptr_t location_id_offset = ((uint)location_id & BIT_MASK_LOW_8) * ADDR_MULTIPLIER_LOCATION + data_base;
-    if (location_id_offset + OFFSET_LOCATION_FLAGS < g_gameState->memory_pool_size) {
-      byte location_flags = g_gameState->memory_pool[location_id_offset + OFFSET_LOCATION_FLAGS];
-      
-      if (((location_flags & BIT_MASK_1) != 0) || ((game_flags & BIT_MASK_8) != 0)) {
-        /* Check game state for special conditions */
-        int state_check = check_game_state();
-        if (state_check == 0) {
-          /* Game state check failed - display message */
-          if ((game_flags & 1) != 0) {
-            display_message_and_move(MSG_SPECIAL_ACTION_68, 0);
-          } else {
-            display_message(MSG_SPECIAL_ACTION_67);
-          }
-          return context;
-        }
-      }
-    }
-    
-    /* Check if movement is valid (location_id matches direction) */
-    if ((byte)current_location_id == direction) {
-      /* Valid movement - display location info */
-      
-      /* Check for special messages based on flags */
-      if (location_id_offset + OFFSET_LOCATION_FLAGS < g_gameState->memory_pool_size) {
-        byte loc_flags = g_gameState->memory_pool[location_id_offset + OFFSET_LOCATION_FLAGS];
-        
-        if (((loc_flags & BIT_MASK_1) != 0) && ((direction_flags & BIT_MASK_1) == 0)) {
-          /* Display special message based on game flags */
-          if ((game_flags & 8) == 0) {
-            display_message(MSG_SPECIAL_ACTION_81);
-          } else {
-            display_message(MSG_SPECIAL_ACTION_80);
-          }
-        }
-        
-        if (((loc_flags & BIT_MASK_4) == 0) && ((direction_flags & BIT_MASK_4) != 0)) {
-          /* Display counter-based message */
-          uint counter_msg = MEM_READ32(MEM_COUNTER_1) + VALUE_180 | MEM_SPECIAL_VALUE_4;
-          display_message(counter_msg);
-        }
-      }
-      
-      /* Display status screen and location description */
-      display_status_screen(screen_id);
-      display_location_description(location_offset);
-      
-      /* Check if movement should stop here */
-      if ((direction_flags & BIT_MASK_32) == RETURN_VALUE_STOP) {
-        return context;
-      }
-      
-      /* Update location buffer counter */
-      uintptr_t buffer_offset = MEM_LOCATION_BUFFER_2;
-      if (buffer_offset < g_gameState->memory_pool_size) {
-        g_gameState->memory_pool[buffer_offset]++;
-      }
-      
-      /* Clear special flag from location */
-      if (location_offset + OFFSET_LOCATION_FLAGS < g_gameState->memory_pool_size) {
-        g_gameState->memory_pool[location_offset + OFFSET_LOCATION_FLAGS] &= BIT_MASK_0xdf;
-      }
-      
-      return context;
-    }
-    
-    /* Invalid movement - display error message */
-    uint error_msg = CONCAT11(VALUE_224, direction);
-    display_message(error_msg);
-    return context;
-    
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "move_to_location", __FILE__, __LINE__);
-    return 0;
-  }
-  #else
-  /* Original DOS implementation */
   char *location_char_ptr;
   byte *flags_byte_ptr;
   byte game_flags;
@@ -6043,7 +4740,6 @@ undefined2 move_to_location(byte location_id, byte direction, uint message_id, c
   /* Phase 4 Goto Elimination: Inline display_message call */
   display_message(result_message);
   return context;
-  #endif
 }
 
 
@@ -6165,25 +4861,6 @@ int process_move_command(int *command_data,int result)
 undefined2 handle_put_command(int object_id, undefined2 target_id)
 
 {
-#ifdef _WIN32
-  /* Simplified Windows version - stub for testing */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return target_id;
-  }
-  
-  log_info("handle_put_command: object_id=%d, target_id=0x%x (Windows stub)", 
-           object_id, target_id);
-  
-  setup_function_context_wrapper();
-  
-  /* Simulate handling PUT commands */
-  /* In a real implementation, this would place objects in containers or locations */
-  
-  /* Return the target_id as a default success */
-  return target_id;
-  
-#else
-  /* Original DOS implementation */
   uint param_e_value;
   uint param_34_value;
   undefined2 object_value;
@@ -6193,23 +4870,7 @@ undefined2 handle_put_command(int object_id, undefined2 target_id)
   undefined2 unaff_DS;
   uint current_object_id;
   
-  /* FIXED: Make setup_function_context_wrapper() non-fatal - continue even if it fails */
-  #ifdef _WIN32
-  __try {
-    setup_function_context_wrapper();
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "handle_put_command: setup_function_context_wrapper (non-fatal)", __FILE__, __LINE__);
-    /* Continue execution - setup might fail but put command handling can still work */
-  }
-  #else
   setup_function_context_wrapper();
-  #endif
-  
-  /* FIXED: Add outer exception handler around entire function body to catch exceptions in core logic */
-  #ifdef _WIN32
-  __try {
-  #endif
-  
   param_e_value = *(uint *)(object_id + OFFSET_PARAM_E);
   param_34_value = *(uint *)(object_id + OFFSET_PARAM_34);
   object_value = *(uint16_t*)(object_id + SIZE_OBJECT_ENTRY);
@@ -6255,15 +4916,6 @@ undefined2 handle_put_command(int object_id, undefined2 target_id)
     display_formatted_message(MSG_SPECIAL_ACTION_57,object_value);
   }
   return target_id;
-  
-  #ifdef _WIN32
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "handle_put_command: core logic exception", __FILE__, __LINE__);
-    /* Return default value on exception */
-    return target_id; /* Keep original target_id */
-  }
-  #endif
-#endif /* !_WIN32 - end of DOS implementation */
 }
 
 
@@ -6273,132 +4925,6 @@ undefined2 handle_put_command(int object_id, undefined2 target_id)
 void move_object_between_locations(uint object_id, int from_location, int to_location)
 
 {
-  #ifdef _WIN32
-  /* Enhanced Windows version - move object between locations with validation */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return;
-  }
-  
-  log_info("move_object_between_locations: Moving object %u from location %d to %d", 
-           object_id, from_location, to_location);
-  
-  setup_function_context_wrapper();
-  
-  /* Bounds check object ID */
-  if (object_id >= MAX_OBJECT_ID) {
-    log_warning("move_object_between_locations: Invalid object ID %u", object_id);
-    return;
-  }
-  
-  /* Get base pointer for object data */
-  uintptr_t base_pointer_offset = MEM_BASE_POINTER;
-  if (base_pointer_offset + 4 > g_gameState->memory_pool_size) {
-    log_warning("move_object_between_locations: Base pointer offset out of bounds");
-    return;
-  }
-  
-  uint base_pointer = MEM_READ32(base_pointer_offset);
-  uintptr_t from_location_ptr = from_location * SIZE_OBJECT_ENTRY + base_pointer;
-  
-  if (from_location_ptr + SIZE_OBJECT_ENTRY > g_gameState->memory_pool_size) {
-    log_warning("move_object_between_locations: from_location_ptr 0x%zx out of bounds", from_location_ptr);
-    return;
-  }
-  
-  /* Check if destination is valid based on from_location flags */
-  uint from_location_flags = MEM_READ32(from_location_ptr + 6);
-  uint can_proceed = 0;
-  
-  if (to_location == 0) {
-    /* Moving to location 0 - check if from_location has OPEN flag */
-    can_proceed = from_location_flags & OBJ_FLAG_OPEN;
-    if (can_proceed == 0) {
-      log_info("move_object_between_locations: Cannot move to location 0 - from_location not open");
-      display_message(MSG_SPECIAL_ACTION_62);
-      return;
-    }
-  } else {
-    /* Moving to non-zero location - check LOCKED and container flags */
-    if ((from_location_flags & OBJ_FLAG_LOCKED) == 0) {
-      log_info("move_object_between_locations: Cannot move - from_location %d not locked", from_location);
-      display_formatted_message(MSG_SPECIAL_ACTION_60, from_location);
-      return;
-    }
-    
-    if ((MEM_READ32(from_location_ptr + 10) & BIT_MASK_16384) == 0) {
-      log_info("move_object_between_locations: Cannot move - from_location %d not a container", from_location);
-      display_message(MSG_SPECIAL_ACTION_61);
-      return;
-    }
-    
-    can_proceed = 1;
-    
-    /* Special case: if object_id is VALUE_137, add special object to inventory */
-    if (object_id == VALUE_137) {
-      log_info("move_object_between_locations: Special case - object %u, adding special item", object_id);
-      uintptr_t temp_offset = MEM_LOCATION_TEMP_2;
-      if (temp_offset < g_gameState->memory_pool_size) {
-        g_gameState->memory_pool[temp_offset]++;
-      }
-      object_id = MEM_POINTER_STORAGE_133;
-      add_object_to_list((byte*)(g_gameState->memory_pool + MEM_LOCATION_BUFFER), MEM_POINTER_STORAGE_133);
-    }
-  }
-  
-  /* Check if object is in inventory, or try to take it */
-  int check_result = is_object_in_inventory(object_id);
-  if (check_result == 0) {
-    log_info("move_object_between_locations: Object %u not in inventory, attempting to take", object_id);
-    check_result = take_object(object_id, 1);
-    if (check_result == 0) {
-      log_warning("move_object_between_locations: Failed to take object %u", object_id);
-      return;
-    }
-  }
-  
-  /* Get object data */
-  uintptr_t object_offset = object_id * SIZE_OBJECT_ENTRY + base_pointer;
-  if (object_offset + SIZE_OBJECT_ENTRY > g_gameState->memory_pool_size) {
-    log_warning("move_object_between_locations: object_offset 0x%zx out of bounds", object_offset);
-    return;
-  }
-  
-  /* Check if object state is less than from_location state */
-  byte object_state = g_gameState->memory_pool[object_offset + 8];
-  byte from_location_state = g_gameState->memory_pool[from_location_ptr + 8];
-  
-  if (object_state >= from_location_state) {
-    log_info("move_object_between_locations: Object state %u >= from_location state %u, cannot move", 
-             object_state, from_location_state);
-    display_formatted_message(MSG_SPECIAL_ACTION_63, from_location);
-    return;
-  }
-  
-  /* Remove from inventory */
-  log_info("move_object_between_locations: Removing object %u from inventory", object_id);
-  remove_object_from_list((byte*)(g_gameState->memory_pool + MEM_LOCATION_BUFFER), (byte)object_id);
-  
-  /* Add to from_location (the container) */
-  log_info("move_object_between_locations: Adding object %u to from_location %d", object_id, from_location);
-  uintptr_t from_list_offset = from_location_ptr + 1;
-  if (from_list_offset < g_gameState->memory_pool_size) {
-    add_object_to_list((byte*)(g_gameState->memory_pool + from_list_offset), (byte)object_id);
-  }
-  
-  /* Update object state to match from_location state */
-  if (object_offset + 2 < g_gameState->memory_pool_size) {
-    g_gameState->memory_pool[object_offset + 2] = from_location_state;
-    log_info("move_object_between_locations: Set object state to %u", from_location_state);
-  }
-  
-  /* Display success message */
-  display_formatted_message(MSG_SPECIAL_ACTION_59, from_location);
-  
-  log_info("move_object_between_locations: Successfully moved object %u", object_id);
-  return;
-  
-  #else
-  /* Original DOS implementation */
   char *pcVar1;
   char *location_char_ptr;
   byte *pbVar2;
@@ -6499,7 +5025,6 @@ void move_object_between_locations(uint object_id, int from_location, int to_loc
   }
   display_formatted_message(message_id,to_location);
   return;
-  #endif
 }
 
 
@@ -6532,96 +5057,6 @@ undefined2 handle_get_command(int command_params,undefined2 result)
 undefined2 take_all_objects(int location_id, undefined2 result)
 
 {
-  #ifdef _WIN32
-  /* Enhanced Windows version - iterate through location and take all takeable objects */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return result;
-  }
-  
-  log_info("take_all_objects: Taking all objects from location %d", location_id);
-  
-  setup_function_context_wrapper();
-  
-  /* Get the current location data */
-  uintptr_t location_data_offset = MEM_LOCATION_DATA;
-  uintptr_t data_base_offset = MEM_DATA_BASE;
-  
-  if (location_data_offset + 4 > g_gameState->memory_pool_size ||
-      data_base_offset + 4 > g_gameState->memory_pool_size) {
-    log_warning("take_all_objects: Memory offsets out of bounds");
-    return result;
-  }
-  
-  uint current_location = MEM_READ32(location_data_offset);
-  uint data_base = MEM_READ32(data_base_offset);
-  uintptr_t location_offset = current_location * ADDR_MULTIPLIER_LOCATION + data_base;
-  
-  if (location_offset >= g_gameState->memory_pool_size) {
-    log_warning("take_all_objects: location offset 0x%zx out of bounds", location_offset);
-    return result;
-  }
-  
-  uint current_object_id = (uint)g_gameState->memory_pool[location_offset];
-  int objects_taken = 0;
-  int objects_skipped = 0;
-  int max_iterations = 100; /* Prevent infinite loops */
-  
-  log_info("take_all_objects: Starting at location 0x%zx, first object=%u", location_offset, current_object_id);
-  
-  /* Iterate through objects and take them */
-  while (current_object_id != 0 && current_object_id < MAX_OBJECT_ID && max_iterations-- > 0) {
-    uintptr_t base_pointer_offset = MEM_BASE_POINTER;
-    if (base_pointer_offset + 4 > g_gameState->memory_pool_size) {
-      break;
-    }
-    
-    uint base_pointer = MEM_READ32(base_pointer_offset);
-    uintptr_t object_offset = current_object_id * SIZE_OBJECT_ENTRY + base_pointer;
-    
-    if (object_offset + SIZE_OBJECT_ENTRY > g_gameState->memory_pool_size) {
-      log_warning("take_all_objects: object offset 0x%zx out of bounds", object_offset);
-      break;
-    }
-    
-    /* Get next object before taking (since take_object modifies the list) */
-    uint next_object_id = (uint)g_gameState->memory_pool[object_offset];
-    
-    /* Check if object is takeable (state < MAX_OBJECT_ID) */
-    byte object_state = g_gameState->memory_pool[object_offset + 8];
-    if (object_state < MAX_OBJECT_ID) {
-      log_info("take_all_objects: Attempting to take object %u (state=%u)", current_object_id, object_state);
-      
-      /* Use location_id=1 to suppress individual success messages */
-      int take_result = take_object(current_object_id, 1);
-      if (take_result != 0) {
-        objects_taken++;
-        log_info("take_all_objects: Successfully took object %u", current_object_id);
-      } else {
-        objects_skipped++;
-        log_info("take_all_objects: Failed to take object %u (too heavy or other reason)", current_object_id);
-      }
-    } else {
-      objects_skipped++;
-      log_info("take_all_objects: Skipping object %u (state=%u >= MAX_OBJECT_ID)", current_object_id, object_state);
-    }
-    
-    current_object_id = next_object_id;
-  }
-  
-  log_info("take_all_objects: Completed - took %d objects, skipped %d", objects_taken, objects_skipped);
-  
-  /* Display appropriate message */
-  if (objects_taken == 0) {
-    display_message(MSG_SPECIAL_ACTION_56); /* "Nothing to take" or similar */
-  } else {
-    /* Display a success message for taking multiple items */
-    display_formatted_message(MSG_SPECIAL_ACTION_49, objects_taken);
-  }
-  
-  return result;
-  
-  #else
-  /* Original DOS implementation */
   uint next_object_id;
   bool objects_taken;
   byte *object_ptr;
@@ -6663,7 +5098,6 @@ undefined2 take_all_objects(int location_id, undefined2 result)
     take_object(*(uint16_t*)(location_id + SIZE_OBJECT_ENTRY),0);
   }
   return result;
-  #endif
 }
 
 
@@ -6673,93 +5107,6 @@ undefined2 take_all_objects(int location_id, undefined2 result)
 undefined2 drop_all_objects(int location_id, undefined2 result)
 
 {
-  #ifdef _WIN32
-  /* Enhanced Windows version - iterate through inventory and drop all objects */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return result;
-  }
-  
-  log_info("drop_all_objects: Dropping all objects to location %d", location_id);
-  
-  setup_function_context_wrapper();
-  
-  /* Get the first object in inventory */
-  if (MEM_LOCATION_BUFFER >= g_gameState->memory_pool_size) {
-    log_warning("drop_all_objects: inventory buffer out of bounds");
-    return result;
-  }
-  
-  uint current_object_id = (uint)g_gameState->memory_pool[MEM_LOCATION_BUFFER];
-  
-  /* Check if inventory is empty */
-  if (current_object_id == 0 || current_object_id == MEM_SPECIAL_VALUE_1) {
-    log_info("drop_all_objects: Inventory is empty (object_id=%u)", current_object_id);
-    display_message(MSG_SPECIAL_ACTION_14); /* "You're not carrying anything" or similar */
-    return result;
-  }
-  
-  int objects_dropped = 0;
-  int objects_skipped = 0;
-  int max_iterations = 100; /* Prevent infinite loops */
-  
-  log_info("drop_all_objects: Starting with first object=%u", current_object_id);
-  
-  /* Iterate through inventory and drop objects */
-  while (current_object_id != 0 && 
-         current_object_id != MEM_SPECIAL_VALUE_1 && 
-         current_object_id < MAX_OBJECT_ID &&
-         max_iterations-- > 0) {
-    
-    uintptr_t base_pointer_offset = MEM_BASE_POINTER;
-    if (base_pointer_offset + 4 > g_gameState->memory_pool_size) {
-      break;
-    }
-    
-    uint base_pointer = MEM_READ32(base_pointer_offset);
-    uintptr_t object_offset = current_object_id * SIZE_OBJECT_ENTRY + base_pointer;
-    
-    if (object_offset + SIZE_OBJECT_ENTRY > g_gameState->memory_pool_size) {
-      log_warning("drop_all_objects: object offset 0x%zx out of bounds", object_offset);
-      break;
-    }
-    
-    /* Get next object before dropping (since drop_object modifies the list) */
-    uint next_object_id = (uint)g_gameState->memory_pool[object_offset];
-    
-    /* Check object state - if > 199, can't drop */
-    byte object_state = g_gameState->memory_pool[object_offset + 8];
-    if (object_state <= 199) {
-      log_info("drop_all_objects: Attempting to drop object %u (state=%u)", current_object_id, object_state);
-      
-      /* Use location_id=1 to suppress individual success messages */
-      int drop_result = drop_object(current_object_id, 1);
-      if (drop_result != 0) {
-        objects_dropped++;
-        log_info("drop_all_objects: Successfully dropped object %u", current_object_id);
-      } else {
-        objects_skipped++;
-        log_info("drop_all_objects: Failed to drop object %u", current_object_id);
-      }
-    } else {
-      objects_skipped++;
-      log_info("drop_all_objects: Skipping object %u (state=%u > 199, cannot drop)", current_object_id, object_state);
-    }
-    
-    current_object_id = next_object_id;
-  }
-  
-  log_info("drop_all_objects: Completed - dropped %d objects, skipped %d", objects_dropped, objects_skipped);
-  
-  /* Display appropriate message */
-  if (objects_dropped > 0) {
-    /* Display a success message for dropping multiple items */
-    display_formatted_message(MSG_SPECIAL_ACTION_55, objects_dropped);
-  }
-  
-  return result;
-  
-  #else
-  /* Original DOS implementation */
   uint next_object_id;
   undefined2 unaff_DS;
   bool use_inventory;
@@ -6796,7 +5143,6 @@ undefined2 drop_all_objects(int location_id, undefined2 result)
     drop_object(*(uint16_t*)(location_id + SIZE_OBJECT_ENTRY),drop_location);
   }
   return result;
-  #endif
 }
 
 
@@ -6861,145 +5207,6 @@ undefined2 handle_operate_command(int *command_data,undefined2 result)
 undefined2 take_object(uint object_id, int location_id)
 
 {
-  #ifdef _WIN32
-  /* Enhanced Windows version - full object taking with weight checking */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return 0;
-  }
-  
-  log_info("take_object: Taking object %u from location %d", object_id, location_id);
-  
-  setup_function_context_wrapper();
-  
-  /* Check if object is already in inventory */
-  int is_in_inv = is_object_in_inventory(object_id);
-  if (is_in_inv != 0) {
-    /* Already have it */
-    log_info("take_object: Object %u already in inventory", object_id);
-    display_formatted_message(MSG_SPECIAL_ACTION_52, object_id);
-    return 0;
-  }
-  
-  /* Bounds check object ID */
-  if (object_id >= MAX_OBJECT_ID) {
-    log_warning("take_object: Invalid object ID %u", object_id);
-    display_formatted_message(MSG_SPECIAL_ACTION_50, object_id);
-    return 0;
-  }
-  
-  uintptr_t base_pointer_offset = MEM_BASE_POINTER;
-  if (base_pointer_offset + 4 > g_gameState->memory_pool_size) {
-    log_warning("take_object: Base pointer offset out of bounds");
-    display_formatted_message(MSG_SPECIAL_ACTION_50, object_id);
-    return 0;
-  }
-  
-  uint base_pointer = MEM_READ32(base_pointer_offset);
-  uintptr_t object_offset = object_id * SIZE_OBJECT_ENTRY + base_pointer;
-  
-  if (object_offset + SIZE_OBJECT_ENTRY > g_gameState->memory_pool_size) {
-    log_warning("take_object: Object offset %zu out of bounds", object_offset);
-    display_formatted_message(MSG_SPECIAL_ACTION_50, object_id);
-    return 0;
-  }
-  
-  /* Check if object is takeable (state < MAX_OBJECT_ID) */
-  byte object_state = g_gameState->memory_pool[object_offset + 8];
-  if (object_state >= MAX_OBJECT_ID) {
-    log_info("take_object: Object %u is not takeable (state=%u)", object_id, object_state);
-    display_formatted_message(MSG_SPECIAL_ACTION_50, object_id);
-    return 0;
-  }
-  
-  /* Check if location_id is valid (if specified and not 0x20) */
-  if ((object_id & 0x20) == 0 && location_id != 0) {
-    /* Location specified - validate it */
-    log_info("take_object: Location check - object_id=0x%x, location_id=%d", object_id, location_id);
-  }
-  
-  /* Check weight/carrying capacity */
-  uintptr_t weight_offset = MEM_LOCATION_TEMP_2;
-  if (weight_offset + 4 <= g_gameState->memory_pool_size &&
-      object_offset + 9 < g_gameState->memory_pool_size &&
-      object_offset + OFFSET_OBJECT_PROPERTIES + 4 <= g_gameState->memory_pool_size) {
-    
-    uint current_weight = MEM_READ32(weight_offset);
-    byte object_weight = g_gameState->memory_pool[object_offset + 9];
-    uint object_properties = MEM_READ32(object_offset + OFFSET_OBJECT_PROPERTIES);
-    
-    log_info("take_object: Weight check - current=%u, object_weight=%u, properties=0x%x", 
-             current_weight, object_weight, object_properties);
-    
-    /* Check if adding this object would exceed carrying capacity */
-    if (object_properties + current_weight >= MEM_POINTER_STORAGE_134) {
-      log_info("take_object: Too heavy! current=%u + properties=%u >= limit=%u", 
-               current_weight, object_properties, MEM_POINTER_STORAGE_134);
-      display_formatted_message(MSG_SPECIAL_ACTION_53, object_id);
-      return 0;
-    }
-  }
-  
-  /* Try to remove object from current location */
-  int remove_result = 0;
-  uintptr_t current_location_offset = MEM_LOCATION_DATA;
-  
-  if (current_location_offset + 4 <= g_gameState->memory_pool_size) {
-    uint current_location = MEM_READ32(current_location_offset);
-    uintptr_t data_base_offset = MEM_DATA_BASE;
-    
-    if (data_base_offset + 4 <= g_gameState->memory_pool_size) {
-      uint data_base = MEM_READ32(data_base_offset);
-      uintptr_t location_list_offset = current_location * ADDR_MULTIPLIER_LOCATION + data_base;
-      
-      if (location_list_offset < g_gameState->memory_pool_size) {
-        log_info("take_object: Removing from current location list at offset 0x%zx", location_list_offset);
-        remove_result = remove_object_from_list((byte*)(g_gameState->memory_pool + location_list_offset), (byte)object_id);
-      }
-    }
-  }
-  
-  /* If not found in current location, try inventory buffer */
-  if (remove_result == 0) {
-    log_info("take_object: Not in location list, trying inventory buffer");
-    remove_result = remove_object_from_list((byte*)(g_gameState->memory_pool + MEM_LOCATION_BUFFER), (byte)object_id);
-  }
-  
-  /* If object wasn't found anywhere, it can't be taken */
-  if (remove_result == 0) {
-    log_warning("take_object: Object %u not found in any location", object_id);
-    display_formatted_message(MSG_SPECIAL_ACTION_51, object_id);
-    return 0;
-  }
-  
-  /* Add to inventory */
-  log_info("take_object: Adding object %u to inventory", object_id);
-  add_object_to_list((byte*)(g_gameState->memory_pool + MEM_LOCATION_BUFFER), (byte)object_id);
-  
-  /* Update object state to "in inventory" */
-  if (object_offset + 2 < g_gameState->memory_pool_size) {
-    g_gameState->memory_pool[object_offset + 2] = 4;
-    log_info("take_object: Set object state to 4 (in inventory)");
-  }
-  
-  /* Update carrying weight (reuse weight_offset from earlier) */
-  if (weight_offset + 1 <= g_gameState->memory_pool_size &&
-      object_offset + 9 < g_gameState->memory_pool_size) {
-    byte current_weight = g_gameState->memory_pool[weight_offset];
-    byte object_weight = g_gameState->memory_pool[object_offset + 9];
-    g_gameState->memory_pool[weight_offset] = current_weight + object_weight;
-    log_info("take_object: Updated weight from %u to %u", current_weight, current_weight + object_weight);
-  }
-  
-  /* Display success message (unless location_id is non-zero, which suppresses message) */
-  if (location_id == 0) {
-    display_formatted_message(MSG_SPECIAL_ACTION_49, object_id);
-  }
-  
-  log_info("take_object: Successfully took object %u", object_id);
-  return 1;
-  
-  #else
-  /* Original DOS implementation */
   char *weight_ptr;
   int remove_result;
   undefined2 message_id;
@@ -7044,7 +5251,6 @@ undefined2 take_object(uint object_id, int location_id)
   }
   display_formatted_message(message_id,object_id);
   return success_flag;
-  #endif
 }
 
 
@@ -7054,109 +5260,6 @@ undefined2 take_object(uint object_id, int location_id)
 undefined2 drop_object(int object_id, int location_id)
 
 {
-  #ifdef _WIN32
-  /* Enhanced Windows version - full object dropping with weight updating */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return 0;
-  }
-  
-  log_info("drop_object: Dropping object %d to location %d", object_id, location_id);
-  
-  setup_function_context_wrapper();
-  
-  /* Check if object is in inventory */
-  int is_in_inv = is_object_in_inventory(object_id);
-  if (is_in_inv == 0) {
-    /* Not in inventory - can't drop it */
-    log_info("drop_object: Object %d not in inventory", object_id);
-    display_formatted_message(MSG_SPECIAL_ACTION_54, object_id);
-    return 0;
-  }
-  
-  /* Bounds check object ID */
-  if (object_id >= MAX_OBJECT_ID) {
-    log_warning("drop_object: Invalid object ID %d", object_id);
-    return 0;
-  }
-  
-  uintptr_t base_pointer_offset = MEM_BASE_POINTER;
-  if (base_pointer_offset + 4 > g_gameState->memory_pool_size) {
-    log_warning("drop_object: Base pointer offset out of bounds");
-    return 0;
-  }
-  
-  uint base_pointer = MEM_READ32(base_pointer_offset);
-  uintptr_t object_offset = object_id * SIZE_OBJECT_ENTRY + base_pointer;
-  
-  if (object_offset + SIZE_OBJECT_ENTRY > g_gameState->memory_pool_size) {
-    log_warning("drop_object: Object offset %zu out of bounds", object_offset);
-    return 0;
-  }
-  
-  /* Check object state - if > 199, can't drop */
-  byte object_state = g_gameState->memory_pool[object_offset + 8];
-  if (object_state > 199) {
-    log_info("drop_object: Object %d has state %u > 199, cannot drop", object_id, object_state);
-    display_message(MSG_GENERIC);
-    return 0;
-  }
-  
-  /* Remove from inventory */
-  log_info("drop_object: Removing object %d from inventory", object_id);
-  int remove_result = remove_object_from_list((byte*)(g_gameState->memory_pool + MEM_LOCATION_BUFFER), (byte)object_id);
-  
-  if (remove_result == 0) {
-    log_warning("drop_object: Failed to remove object %d from inventory", object_id);
-    return 0;
-  }
-  
-  /* Add to current location */
-  uintptr_t location_data_offset = MEM_LOCATION_DATA;
-  uintptr_t data_base_offset = MEM_DATA_BASE;
-  
-  if (location_data_offset + 4 <= g_gameState->memory_pool_size &&
-      data_base_offset + 4 <= g_gameState->memory_pool_size) {
-    
-    uint current_location = MEM_READ32(location_data_offset);
-    uint data_base = MEM_READ32(data_base_offset);
-    uintptr_t location_offset = current_location * SIZE_LOCATION_ENTRY + data_base;
-    
-    if (location_offset < g_gameState->memory_pool_size) {
-      log_info("drop_object: Adding object %d to location %u at offset 0x%zx", 
-               object_id, current_location, location_offset);
-      add_object_to_list((byte*)(g_gameState->memory_pool + location_offset), (byte)object_id);
-    } else {
-      log_warning("drop_object: Location offset 0x%zx out of bounds", location_offset);
-    }
-  }
-  
-  /* Update carrying weight */
-  uintptr_t weight_offset = MEM_LOCATION_TEMP_2;
-  if (weight_offset + 1 <= g_gameState->memory_pool_size &&
-      object_offset + 9 < g_gameState->memory_pool_size) {
-    byte current_weight = g_gameState->memory_pool[weight_offset];
-    byte object_weight = g_gameState->memory_pool[object_offset + 9];
-    
-    /* Prevent underflow */
-    if (current_weight >= object_weight) {
-      g_gameState->memory_pool[weight_offset] = current_weight - object_weight;
-      log_info("drop_object: Updated weight from %u to %u", current_weight, current_weight - object_weight);
-    } else {
-      log_warning("drop_object: Weight underflow prevented (current=%u, object=%u)", current_weight, object_weight);
-      g_gameState->memory_pool[weight_offset] = 0;
-    }
-  }
-  
-  /* Display success message (unless location_id is non-zero, which suppresses message) */
-  if (location_id == 0) {
-    display_formatted_message(MSG_SPECIAL_ACTION_55, object_id);
-  }
-  
-  log_info("drop_object: Successfully dropped object %d", object_id);
-  return 1;
-  
-  #else
-  /* Original DOS implementation */
   char *weight_ptr;
   int is_in_inventory;
   undefined2 message_id;
@@ -7186,7 +5289,6 @@ undefined2 drop_object(int object_id, int location_id)
   }
   display_formatted_message(message_id,object_id);
   return success_flag;
-  #endif
 }
 
 
@@ -7205,13 +5307,7 @@ bool is_object_in_inventory(uint object_id)
   not_found = true;
   next_object_id = MEM_READ32(MEM_LOCATION_BUFFER);
   while ((current_object_id = (uint)next_object_id, current_object_id != 0 && (not_found = current_object_id != object_id, not_found))) {
-    /* Fixed: Use memory pool instead of absolute address */
-    uint32_t object_offset = current_object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER);
-    if (object_offset < g_gameState->memory_pool_size) {
-      next_object_id = g_gameState->memory_pool[object_offset];
-    } else {
-      next_object_id = 0; /* End of list if out of bounds */
-    }
+    next_object_id = *(byte *)(current_object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER));
   }
   return !not_found;
 }
@@ -7223,25 +5319,6 @@ bool is_object_in_inventory(uint object_id)
 int check_game_state(void)
 
 {
-  #ifdef _WIN32
-  /* Simplified Windows version - bypass complex object searching */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return 0;
-  }
-  
-  /* For Windows testing, return a simple count based on memory state */
-  /* This allows game logic to continue without complex DOS-specific operations */
-  int simple_count = 0;
-  
-  /* Check if we have valid memory regions */
-  if (MEM_READ32(MEM_LOCATION_DATA) < 256 && MEM_READ32(MEM_DATA_BASE) < g_gameState->memory_pool_size) {
-    simple_count = 1; /* Indicate some objects exist */
-  }
-  
-  return simple_count;
-  
-  #else
-  /* Original DOS implementation */
   int location_objects_count;
   int inventory_objects_count;
   undefined2 unaff_DS;
@@ -7250,7 +5327,6 @@ int check_game_state(void)
   location_objects_count = find_objects_in_location((byte*)(g_gameState->memory_pool + MEM_READ32(MEM_LOCATION_DATA) * ADDR_MULTIPLIER_LOCATION + MEM_READ32(MEM_DATA_BASE)), BIT_MASK_16384, OBJ_FLAG_LOCKED, MEM_OBJECT_BUFFER);
   inventory_objects_count = find_objects_in_location((byte*)(g_gameState->memory_pool + MEM_LOCATION_BUFFER), BIT_MASK_16384, OBJ_FLAG_LOCKED, MEM_OBJECT_BUFFER);
   return location_objects_count + inventory_objects_count;
-  #endif
 }
 
 
@@ -7271,34 +5347,19 @@ int find_objects_in_location(byte *list_ptr,uint location_id,uint flags,int max_
   match_count = 0;
   next_object_id = *list_ptr;
   while (current_object_id = (uint)next_object_id, current_object_id != 0) {
-    /* Fixed: Use memory pool access instead of direct pointer arithmetic */
-    uintptr_t obj_flags_offset = current_object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER) + 6;
-    uintptr_t obj_attrs_offset = current_object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER) + 10;
-    
-    if (((location_id == 0) || ((MEM_READ32(obj_flags_offset) & location_id) != 0)) &&
-       ((flags == 0 || ((MEM_READ32(obj_attrs_offset) & flags) != 0)))) {
-      /* Fixed: Use memory pool access for result buffer */
-      uintptr_t result_offset = match_count + max_count;
-      if (result_offset < g_gameState->memory_pool_size) {
-        g_gameState->memory_pool[result_offset] = next_object_id;
-      }
+    if (((location_id == 0) || ((*(uint *)(current_object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER) + 6) & location_id) != 0)) &&
+       ((flags == 0 || ((*(uint *)(current_object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER) + 10) & flags) != 0)))) {
+      *(byte *)(match_count + max_count) = next_object_id;
       match_count = match_count + 1;
     }
     object_ptr = current_object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER);
-    /* Fixed: Use memory pool access for flag checks */
-    if ((((MEM_READ32(object_ptr + 6) & OBJ_FLAG_LOCKED) != 0) && ((MEM_READ32(object_ptr + 10) & BIT_MASK_16384) != 0)) ||
-       ((MEM_READ32(obj_flags_offset) & MEM_POINTER_STORAGE_225) != 0)) {
+    if ((((*(uint *)(object_ptr + 6) & OBJ_FLAG_LOCKED) != 0) && ((*(uint *)(object_ptr + 10) & BIT_MASK_16384) != 0)) ||
+       ((*(uint *)(current_object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER) + 6) & MEM_POINTER_STORAGE_225) != 0)) {
       result_buffer_offset = match_count + max_count;
-      object_ptr = find_objects_in_location_wrapper_3((byte*)(g_gameState->memory_pool + result_buffer_offset * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER) + 1), location_id, flags);
+      object_ptr = find_objects_in_location_wrapper_3((byte*)(result_buffer_offset * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER) + 1), location_id, flags);
       match_count = match_count + object_ptr;
     }
-    /* Fixed: Use memory pool access for next object */
-    uintptr_t next_obj_offset = current_object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER);
-    if (next_obj_offset < g_gameState->memory_pool_size) {
-      next_object_id = g_gameState->memory_pool[next_obj_offset];
-    } else {
-      next_object_id = 0; /* End of list if out of bounds */
-    }
+    next_object_id = *(byte *)(current_object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER));
   }
   return match_count;
 }
@@ -7310,67 +5371,6 @@ int find_objects_in_location(byte *list_ptr,uint location_id,uint flags,int max_
 int remove_object_from_list(byte *list_ptr,byte object_id)
 
 {
-  #ifdef _WIN32
-  /* Windows version with proper bounds checking */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL || list_ptr == NULL) {
-    return 0;
-  }
-  
-  /* Calculate offset of list_ptr in memory pool */
-  uintptr_t list_offset = (uintptr_t)list_ptr - (uintptr_t)g_gameState->memory_pool;
-  if (list_offset >= g_gameState->memory_pool_size) {
-    log_warning("remove_object_from_list: list_ptr out of bounds");
-    return 0;
-  }
-  
-  setup_function_context_wrapper();
-  byte next_object_id = g_gameState->memory_pool[list_offset];
-  
-  while (true) {
-    uint current_object_id = (uint)next_object_id;
-    if (next_object_id == 0) {
-      return 0;
-    }
-    if (object_id == current_object_id) break;
-    
-    /* Bounds check object access */
-    uintptr_t object_ptr = current_object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER);
-    if (object_ptr + SIZE_OBJECT_ENTRY > g_gameState->memory_pool_size) {
-      log_warning("remove_object_from_list: object %u out of bounds", current_object_id);
-      return 0;
-    }
-    
-    /* Check for recursive search in containers */
-    uint flags_10 = MEM_READ32(object_ptr + 10);
-    uint flags_6 = MEM_READ32(object_ptr + 6);
-    
-    if ((((flags_10 & BIT_MASK_16384) != 0) || ((flags_6 & OBJ_FLAG_OPEN) != 0)) &&
-        ((flags_6 & OBJ_FLAG_CONTAINER) == 0)) {
-      int result = remove_object_from_list((byte *)(g_gameState->memory_pool + object_ptr + 1), object_id);
-      if (result != 0) {
-        return result;
-      }
-    }
-    
-    /* Move to next object in list */
-    list_offset = object_ptr;
-    if (object_ptr < g_gameState->memory_pool_size) {
-      next_object_id = g_gameState->memory_pool[object_ptr];
-    } else {
-      return 0;
-    }
-  }
-  
-  /* Found the object - remove it from list */
-  uint current_object_id = (uint)next_object_id;
-  uintptr_t object_ptr = current_object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER);
-  if (object_ptr < g_gameState->memory_pool_size && list_offset < g_gameState->memory_pool_size) {
-    g_gameState->memory_pool[list_offset] = g_gameState->memory_pool[object_ptr];
-  }
-  return 1;
-  
-  #else
-  /* Original DOS implementation */
   byte next_object_id;
   uint current_object_id;
   int object_ptr;
@@ -7395,7 +5395,6 @@ int remove_object_from_list(byte *list_ptr,byte object_id)
   }
   *list_ptr = *(byte *)(current_object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER));
   return 1;
-  #endif
 }
 
 
@@ -7405,53 +5404,6 @@ int remove_object_from_list(byte *list_ptr,byte object_id)
 undefined2 add_object_to_list(byte *list_ptr, byte object_id)
 
 {
-  #ifdef _WIN32
-  /* Windows version with proper bounds checking */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL || list_ptr == NULL) {
-    return 0;
-  }
-  
-  /* Calculate offset of list_ptr in memory pool */
-  uintptr_t list_offset = (uintptr_t)list_ptr - (uintptr_t)g_gameState->memory_pool;
-  if (list_offset >= g_gameState->memory_pool_size) {
-    log_warning("add_object_to_list: list_ptr out of bounds");
-    return 0;
-  }
-  
-  setup_function_context_wrapper();
-  byte next_object_id = g_gameState->memory_pool[list_offset];
-  
-  /* Bounds check object access */
-  uintptr_t object_offset = (uint)object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER);
-  if (object_offset + SIZE_OBJECT_ENTRY > g_gameState->memory_pool_size) {
-    log_warning("add_object_to_list: object %u out of bounds", object_id);
-    return 0;
-  }
-  
-  /* Check and update object flags */
-  uintptr_t flags_offset = object_offset + 6;
-  if (flags_offset < g_gameState->memory_pool_size) {
-    byte flags = g_gameState->memory_pool[flags_offset];
-    if ((flags & 4) != 0) {
-      /* Update counter with bounds check */
-      if (MEM_POINTER_STORAGE_252 < g_gameState->memory_pool_size) {
-        g_gameState->memory_pool[MEM_POINTER_STORAGE_252]++;
-      }
-      /* Clear flag bit */
-      g_gameState->memory_pool[flags_offset] = flags & BIT_MASK_0xfb;
-    }
-  }
-  
-  /* Add object to front of list */
-  if (object_offset < g_gameState->memory_pool_size) {
-    g_gameState->memory_pool[object_offset] = next_object_id;
-  }
-  g_gameState->memory_pool[list_offset] = object_id;
-  
-  return 1;
-  
-  #else
-  /* Original DOS implementation */
   char *count_char_ptr;
   byte *flags_byte_ptr;
   byte next_object_id;
@@ -7470,7 +5422,6 @@ undefined2 add_object_to_list(byte *list_ptr, byte object_id)
   *(byte *)((uint)object_id * SIZE_OBJECT_ENTRY + MEM_READ32(MEM_BASE_POINTER)) = next_object_id;
   *list_ptr = object_id;
   return 1;
-  #endif
 }
 
 
@@ -7480,106 +5431,6 @@ undefined2 add_object_to_list(byte *list_ptr, byte object_id)
 void display_status_screen(int screen_id)
 
 {
-  #ifdef _WIN32
-  /* Windows version - display status/inventory screen using DisplayPrint */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return;
-  }
-  
-  log_info("display_status_screen: Displaying status screen %d", screen_id);
-  
-  setup_function_context_wrapper();
-  
-  /* Get current location ID */
-  uintptr_t location_data_offset = MEM_LOCATION_DATA;
-  if (location_data_offset + 4 > g_gameState->memory_pool_size) {
-    log_warning("display_status_screen: Location data offset out of bounds");
-    return;
-  }
-  
-  uint location_id = MEM_READ32(location_data_offset);
-  
-  /* Display status header */
-  DisplayPrint("\n");
-  DisplayPrint("========================================\n");
-  DisplayPrint("           GAME STATUS\n");
-  DisplayPrint("========================================\n\n");
-  
-  /* Load and display location name */
-  uintptr_t buffer_offset = MEM_POINTER_STORAGE_244;
-  if (buffer_offset + 256 <= g_gameState->memory_pool_size) {
-    int string_length = load_string_from_file(location_id, buffer_offset);
-    
-    if (string_length > 0) {
-      char *location_name = (char *)(g_gameState->memory_pool + buffer_offset);
-      DisplayPrint("Location: ");
-      
-      /* Display location name (null-terminated or up to reasonable length) */
-      char location_buffer[128];
-      int copy_len = (string_length < 127) ? string_length : 127;
-      memcpy(location_buffer, location_name, copy_len);
-      location_buffer[copy_len] = '\0';
-      
-      DisplayPrint(location_buffer);
-      DisplayPrint("\n");
-    }
-  }
-  
-  /* Display temperature/environment info if available */
-  uintptr_t location_temp_offset = MEM_LOCATION_TEMP;
-  if (location_temp_offset + 4 <= g_gameState->memory_pool_size) {
-    uint temp_value = MEM_READ32(location_temp_offset);
-    
-    if (temp_value != 0) {
-      display_formatted_message(MSG_SPECIAL_ACTION_11, temp_value);
-    }
-  }
-  
-  DisplayPrint("\n");
-  
-  /* Display location-specific message or description */
-  if (screen_id == 0) {
-    /* Display generic status message */
-    display_message(MEM_POINTER_STORAGE_282);
-  } else {
-    /* Display location-specific description */
-    uintptr_t data_base_offset = MEM_DATA_BASE;
-    if (data_base_offset + 4 <= g_gameState->memory_pool_size) {
-      uint data_base = MEM_READ32(data_base_offset);
-      uintptr_t location_entry_offset = location_id * SIZE_LOCATION_ENTRY + data_base;
-      
-      if (location_entry_offset + OFFSET_OBJECT_STATE + 1 <= g_gameState->memory_pool_size) {
-        byte location_state = g_gameState->memory_pool[location_entry_offset + OFFSET_OBJECT_STATE];
-        uint message_id = ((uint)location_state << BIT_SHIFT_12) | location_id;
-        
-        load_and_display_message(message_id);
-      }
-    }
-  }
-  
-  DisplayPrint("\n");
-  DisplayPrint("--- Inventory ---\n");
-  
-  /* Display inventory items */
-  uintptr_t inventory_offset = MEM_LOCATION_BUFFER;
-  if (inventory_offset + 4 <= g_gameState->memory_pool_size) {
-    uint inventory_head = MEM_READ32(inventory_offset);
-    
-    if (inventory_head == 0 || inventory_head == MEM_SPECIAL_VALUE_1) {
-      DisplayPrint("  (empty)\n");
-    } else {
-      display_item_list(inventory_head);
-    }
-  }
-  
-  DisplayPrint("\n");
-  DisplayPrint("========================================\n\n");
-  
-  DisplayRefresh();
-  return;
-  
-  #else
-  /* Original DOS implementation */
   uint location_id;
   uint location_temp_value;
   uint unaff_DS;
@@ -7605,7 +5456,6 @@ void display_status_screen(int screen_id)
   }
   display_item_details_wrapper_1((byte*)(location_id * SIZE_LOCATION_ENTRY + MEM_READ32(MEM_DATA_BASE)));
   return;
-  #endif
 }
 
 
@@ -7672,92 +5522,6 @@ void display_item_details(byte *list_ptr)
 uint display_object_info(uint object_id)
 
 {
-  #ifdef _WIN32
-  /* Windows version - display object information using DisplayPrint */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return 0;
-  }
-  
-  log_info("display_object_info: Displaying info for object %u", object_id);
-  
-  setup_function_context_wrapper();
-  
-  /* Calculate object entry offset */
-  uintptr_t base_pointer_offset = MEM_BASE_POINTER;
-  if (base_pointer_offset + 4 > g_gameState->memory_pool_size) {
-    log_warning("display_object_info: Base pointer offset out of bounds");
-    return 0;
-  }
-  
-  uint base_pointer = MEM_READ32(base_pointer_offset);
-  uintptr_t object_ptr = object_id * SIZE_OBJECT_ENTRY + base_pointer;
-  
-  /* Bounds check */
-  if (object_ptr + SIZE_OBJECT_ENTRY > g_gameState->memory_pool_size) {
-    log_warning("display_object_info: Object offset %zu out of bounds for object %u", object_ptr, object_id);
-    return 0;
-  }
-  
-  /* Read object properties */
-  byte object_location = g_gameState->memory_pool[object_ptr + 1];
-  uint object_flags = 0;
-  
-  if (object_ptr + 6 + 4 <= g_gameState->memory_pool_size) {
-    object_flags = MEM_READ32(object_ptr + 6);
-  }
-  
-  uint result_value = 0;
-  uint message_value = (uint)object_location;
-  
-  /* Check if object contains other objects */
-  if (object_location != 0) {
-    /* Determine what message to display based on object state */
-    if ((object_flags & OBJ_FLAG_OPEN) == 0) {
-      /* Object is closed */
-      bool is_locked = (object_flags & OBJ_FLAG_LOCKED) != 0;
-      bool has_special_flags = false;
-      
-      /* Check for special flags */
-      if (object_ptr + OFFSET_OBJECT_PROPERTIES + 4 <= g_gameState->memory_pool_size) {
-        uint object_properties = MEM_READ32(object_ptr + OFFSET_OBJECT_PROPERTIES);
-        has_special_flags = ((object_properties & BIT_MASK_16384) == 0) && ((object_flags & BIT_MASK_128) == 0);
-      }
-      
-      if (!is_locked || has_special_flags) {
-        result_value = 0;
-      } else {
-        result_value = 1;
-      }
-      
-      if (result_value == 0) {
-        /* Object is closed and can't be examined */
-        return result_value;
-      }
-      
-      /* Display "locked" message */
-      message_value = MEM_POINTER_STORAGE_277;
-    } else {
-      /* Object is open - display "contains" message */
-      message_value = MEM_POINTER_STORAGE_280;
-    }
-    
-    result_value = object_id;
-    
-    /* Display the formatted message (e.g., "The box contains:" or "The box is locked.") */
-    display_formatted_message(message_value, object_id);
-  }
-  
-  /* If result_value is set, display the list of items inside this object */
-  if (result_value != 0) {
-    result_value = message_value;
-    display_item_list(object_location);
-  }
-  
-  DisplayRefresh();
-  return result_value;
-  
-  #else
-  /* Original DOS implementation */
   byte object_location;
   uint object_flags;
   int object_ptr;
@@ -7804,7 +5568,6 @@ uint display_object_info(uint object_id)
     display_item_list_wrapper_0();
   }
   return result_value;
-  #endif
 }
 
 
@@ -7814,91 +5577,6 @@ uint display_object_info(uint object_id)
 void display_item_list(uint location_id)
 
 {
-  #ifdef _WIN32
-  /* Windows version - display list of items/objects using DisplayPrint */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return;
-  }
-  
-  log_info("display_item_list: Displaying items for location %u", location_id);
-  
-  setup_function_context_wrapper();
-  
-  /* Iterate through objects in the location's linked list */
-  int iteration_count = 0;
-  const int MAX_ITERATIONS = 100; /* Prevent infinite loops */
-  int item_count = 0;
-  
-  uint current_object_id = location_id;
-  
-  while (current_object_id != 0 && iteration_count < MAX_ITERATIONS) {
-    /* Calculate object entry offset */
-    uintptr_t base_pointer_offset = MEM_BASE_POINTER;
-    if (base_pointer_offset + 4 > g_gameState->memory_pool_size) {
-      log_warning("display_item_list: Base pointer offset out of bounds");
-      break;
-    }
-    
-    uint base_pointer = MEM_READ32(base_pointer_offset);
-    uintptr_t object_offset = current_object_id * SIZE_OBJECT_ENTRY + base_pointer;
-    
-    /* Bounds check before accessing memory */
-    if (object_offset + SIZE_OBJECT_ENTRY > g_gameState->memory_pool_size) {
-      log_warning("display_item_list: Object offset %zu out of bounds for object %u", object_offset, current_object_id);
-      break;
-    }
-    
-    /* Read object properties */
-    char object_state = g_gameState->memory_pool[object_offset + 8];
-    char object_type = g_gameState->memory_pool[object_offset + 2];
-    
-    /* Only display visible objects (state != -1) */
-    if (object_state != -1) {
-      item_count++;
-      
-      if (object_type == '\x04') {
-        /* Special object type - use formatted message */
-        display_formatted_message(MEM_POINTER_STORAGE_278, current_object_id);
-      }
-      else {
-        /* Regular object - load and display its description */
-        if (object_offset + OFFSET_OBJECT_FLAGS < g_gameState->memory_pool_size) {
-          /* Calculate message ID from object flags and ID */
-          uint message_id = ((uint)g_gameState->memory_pool[object_offset + OFFSET_OBJECT_FLAGS] << BIT_SHIFT_12) | current_object_id;
-          
-          /* Load and display the object's description message */
-          int result = load_and_display_message(message_id);
-          
-          if (result <= 0) {
-            /* Fallback: display object ID if message load failed */
-            char fallback_msg[64];
-            snprintf(fallback_msg, sizeof(fallback_msg), "  Object #%u\n", current_object_id);
-            DisplayPrint(fallback_msg);
-          }
-        }
-      }
-    }
-    
-    /* Get next object in linked list */
-    if (object_offset < g_gameState->memory_pool_size) {
-      current_object_id = (uint)g_gameState->memory_pool[object_offset];
-    } else {
-      break;
-    }
-    
-    iteration_count++;
-  }
-  
-  /* If no items were displayed, show a message */
-  if (item_count == 0) {
-    DisplayPrint("  (nothing visible)\n");
-  }
-  
-  DisplayRefresh();
-  return;
-  
-  #else
-  /* Original DOS implementation */
   int object_ptr;
   undefined2 unaff_DS;
   
@@ -7915,7 +5593,6 @@ void display_item_list(uint location_id)
     }
   }
   return;
-  #endif
 }
 
 
@@ -7925,40 +5602,6 @@ void display_item_list(uint location_id)
 void display_formatted_message(undefined2 message_id, uint value)
 
 {
-  #ifdef _WIN32
-  /* Full Windows implementation - display formatted messages */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return;
-  }
-  
-  setup_function_context_wrapper();
-  
-  /* Adjust value for formatting */
-  if ((int)value < 0) {
-    value = value & BIT_MASK_0x7fff;
-  }
-  else {
-    value = value | BIT_MASK_16384;
-  }
-  
-  /* Load the format string */
-  int string_length = load_string_from_file(value, MEM_POINTER_STORAGE_46);
-  
-  if (string_length > 0) {
-    char *format_string = (char *)(g_gameState->memory_pool + MEM_POINTER_STORAGE_46);
-    
-    /* Simple formatting - replace %d or %s with value */
-    /* For now, just display the format string and value */
-    DisplayPrint(format_string);
-    
-    log_debug("display_formatted_message: [%u] value=%u %s", message_id, value, format_string);
-  } else {
-    log_warning("display_formatted_message: Failed to load message for value %u", value);
-  }
-  
-  return;
-  #else
-  /* Original DOS implementation */
   setup_function_context_wrapper();
   if ((int)value < 0) {
     value = value & BIT_MASK_0x7fff;
@@ -7969,7 +5612,6 @@ void display_formatted_message(undefined2 message_id, uint value)
   load_string_from_file(value, MEM_POINTER_STORAGE_46);
   display_message_wrapper_2(message_id, MEM_POINTER_STORAGE_271);
   return;
-  #endif
 }
 
 
@@ -7979,55 +5621,6 @@ void display_formatted_message(undefined2 message_id, uint value)
 int display_message(uint message_id)
 
 {
-  #ifdef _WIN32
-  /* Full Windows implementation - load and display messages */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return 0;
-  }
-  
-  setup_function_context_wrapper();
-  
-  /* Update memory state for game logic compatibility */
-  uint random_value = get_random_number();
-  MEM_WRITE32(MEM_ERROR_CODE, random_value & 3);
-  
-  /* Adjust message ID if needed (for random variations) */
-  if ((message_id & BIT_MASK_0xf000) == MEM_POINTER_STORAGE_272) {
-    message_id = message_id + MEM_READ32(MEM_ERROR_CODE);
-  }
-  
-  /* Check if message is already cached */
-  uint *cached_message_ptr = (uint *)(g_gameState->memory_pool + MEM_POINTER_STORAGE_47);
-  int string_length_result;
-  
-  if (*cached_message_ptr == message_id) {
-    /* Message already loaded - just get length */
-    char *buffer = (char *)(g_gameState->memory_pool + BUFFER_SIZE_STRING);
-    string_length_result = (int)strlen(buffer);
-  } else {
-    /* Load message from game data file */
-    string_length_result = load_string_from_file(message_id, BUFFER_SIZE_STRING);
-    if (string_length_result > 0) {
-      *cached_message_ptr = message_id;
-    }
-  }
-  
-  /* Display the message if successfully loaded */
-  if (string_length_result > 0) {
-    char *message_buffer = (char *)(g_gameState->memory_pool + BUFFER_SIZE_STRING);
-    
-    /* Output using display adapter (works for both console and window) */
-    DisplayPrint(message_buffer);
-    
-    /* Also log for debugging */
-    log_debug("display_message: [%u] %s", message_id, message_buffer);
-  } else {
-    log_warning("display_message: Failed to load message %u", message_id);
-  }
-  
-  return string_length_result;
-  #else
-  /* Original DOS implementation */
   uint random_value;
   int string_length_result;
   undefined2 unaff_DS;
@@ -8058,7 +5651,6 @@ int display_message(uint message_id)
     print_string_wrapper_1(buffer_offset);
   }
   return string_length_result;
-  #endif
 }
 
 
@@ -8068,116 +5660,6 @@ int display_message(uint message_id)
 undefined2 display_location_description(int location_id)
 
 {
-  #ifdef _WIN32
-  /* Windows version - load and display location description using DisplayPrint */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return 0;
-  }
-  
-  log_info("display_location_description: Displaying description for location %d", location_id);
-  
-  setup_function_context_wrapper();
-  
-  /* Calculate string ID from location data */
-  uintptr_t location_offset = (uintptr_t)location_id;
-  if (location_offset + 6 > g_gameState->memory_pool_size) {
-    log_warning("display_location_description: Invalid location_id %d", location_id);
-    return 0;
-  }
-  
-  /* Get location description string ID */
-  uint string_id = g_gameState->memory_pool[location_offset + 4] | 0xA000;
-  byte location_byte = g_gameState->memory_pool[location_offset + 5];
-  
-  /* Load the location description string if not already cached */
-  uintptr_t cached_string_id_offset = MEM_POINTER_STORAGE_98;
-  uintptr_t string_length_offset = MEM_POINTER_STORAGE_48;
-  uintptr_t buffer_offset = MEM_POINTER_STORAGE_208;
-  
-  if (cached_string_id_offset + 4 <= g_gameState->memory_pool_size &&
-      string_length_offset + 4 <= g_gameState->memory_pool_size &&
-      buffer_offset + 512 <= g_gameState->memory_pool_size) {
-    
-    uint cached_id = MEM_READ32(cached_string_id_offset);
-    
-    if (cached_id != string_id) {
-      /* Load new description string */
-      int string_length = load_string_from_secondary_file(string_id, buffer_offset);
-      MEM_WRITE32(string_length_offset, string_length);
-      MEM_WRITE32(cached_string_id_offset, string_id);
-    }
-    
-    int string_length = MEM_READ32(string_length_offset);
-    
-    if (string_length > 0) {
-      /* Display the location description */
-      DisplayPrint("\n");
-      
-      /* Calculate line offset and window parameters */
-      uint line_offset = (location_byte - 1) / 3;
-      uint column_index = (location_byte - 1) % 3;
-      
-      /* Display location name/title from buffer */
-      uintptr_t title_offset = MEM_BUFFER_OFFSET_A9C;
-      if (title_offset + 36 <= g_gameState->memory_pool_size) {
-        char title_buffer[37];
-        memcpy(title_buffer, g_gameState->memory_pool + title_offset, 36);
-        title_buffer[36] = '\0';
-        
-        /* Trim trailing spaces */
-        for (int i = 35; i >= 0 && title_buffer[i] == ' '; i--) {
-          title_buffer[i] = '\0';
-        }
-        
-        if (title_buffer[0] != '\0') {
-          DisplayPrint(title_buffer);
-          DisplayPrint("\n");
-        }
-      }
-      
-      /* Display location description lines */
-      int max_lines = 7; /* Typical maximum lines for location description */
-      
-      for (int line_index = 0; line_index < max_lines; line_index++) {
-        char line_buffer[13]; /* 12 chars + null terminator */
-        
-        /* Calculate offset for this line in the description data */
-        uintptr_t line_data_offset = MEM_BUFFER_OFFSET_A9C + 
-                                     line_offset * 144 + 
-                                     column_index * 12 + 
-                                     line_index * 36;
-        
-        if (line_data_offset + 12 <= g_gameState->memory_pool_size) {
-          /* Copy line data */
-          for (int i = 0; i < 12; i++) {
-            line_buffer[i] = g_gameState->memory_pool[line_data_offset + i];
-          }
-          line_buffer[12] = '\0';
-          
-          /* Trim trailing spaces */
-          for (int i = 11; i >= 0 && line_buffer[i] == ' '; i--) {
-            line_buffer[i] = '\0';
-          }
-          
-          /* Display line if not empty */
-          if (line_buffer[0] != '\0') {
-            DisplayPrint(line_buffer);
-            DisplayPrint("\n");
-          }
-        }
-      }
-      
-      DisplayPrint("\n");
-      DisplayRefresh();
-    }
-    
-    return MEM_READ32(string_length_offset);
-  }
-  
-  return 0;
-  
-  #else
-  /* Original DOS implementation */
   int *max_lines_ptr;
   byte location_byte;
   int copy_index;
@@ -8251,7 +5733,6 @@ undefined2 display_location_description(int location_id)
     clear_display_line_wrapper_0();
   }
   return MEM_READ32(MEM_POINTER_STORAGE_48);
-  #endif
 }
 
 
@@ -8717,18 +6198,8 @@ void setup_display_window(int window_id, int reset_cursor_to_home)
     #else
     handle_display_mode(2);
     #endif
-    
-    /* Set cursor to home position (1, 1) with bounds checking */
-    uintptr_t cursor_x_reset_offset = (uintptr_t)(window_id * SIZE_COMMAND_ENTRY + MEM_POINTER_STORAGE_50);
-    uintptr_t cursor_y_reset_offset = (uintptr_t)(window_id * SIZE_COMMAND_ENTRY + MEM_POINTER_STORAGE_51);
-    
-    if (cursor_x_reset_offset + sizeof(uint16_t) <= g_gameState->memory_pool_size &&
-        cursor_y_reset_offset + sizeof(uint16_t) <= g_gameState->memory_pool_size) {
-      *(uint16_t*)(g_gameState->memory_pool + cursor_x_reset_offset) = 1;
-      *(uint16_t*)(g_gameState->memory_pool + cursor_y_reset_offset) = 1;
-    } else {
-      log_warning("setup_display_window: Cursor reset memory out of bounds (window_id=%d)", window_id);
-    }
+    *(uint16_t*)(window_id * SIZE_COMMAND_ENTRY + MEM_POINTER_STORAGE_50) = 1;
+    *(uint16_t*)(window_id * SIZE_COMMAND_ENTRY + MEM_POINTER_STORAGE_51) = 1;
     return;
   }
   /* Check bounds before accessing cursor position memory */
@@ -8767,21 +6238,6 @@ void setup_display_window(int window_id, int reset_cursor_to_home)
 void update_display_mode(int mode)
 
 {
-  #ifdef _WIN32
-  /* On Windows, DOS display mode switching is not supported */
-  /* Provide a no-op implementation */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return;
-  }
-  
-  /* Update memory to indicate mode was "set" (for compatibility) */
-  if (MEM_VIDEO_MODE + 4 <= g_gameState->memory_pool_size) {
-    MEM_WRITE32(MEM_VIDEO_MODE, mode);
-  }
-  
-  return;
-  #else
-  /* Original DOS implementation */
   undefined2 *dest_ptr;
   undefined2 *src_ptr;
   int file_handle;
@@ -8838,7 +6294,6 @@ void update_display_mode(int mode)
   display_location_description((uint)MEM_READ32(MEM_LOCATION_DATA) * SIZE_LOCATION_ENTRY + MEM_READ32(MEM_DATA_BASE));
   display_status_screen(1);
   return;
-  #endif
 }
 
 
@@ -9296,67 +6751,63 @@ int file_open(undefined2 filename_ptr)
 void display_error(char error_code)
 
 {
-  /* Validate game state first - do this before any exception handling */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    fprintf(stderr, "display_error: Game state not initialized\n");
-    fflush(stderr);
-    return;
-  }
-  
-  #ifdef _WIN32
-  /* On Windows, provide a simple console-based error display */
-  /* The original game display functions rely on DOS interrupts that don't work on Windows */
-  const char* error_msg = "Unknown error";
-  
-  /* Map numeric error codes to user-friendly messages */
-  switch (error_code) {
-    case 0: error_msg = "No error"; break;
-    case 1: error_msg = "File not found"; break;
-    case 2: error_msg = "File access denied"; break;
-    case 3: error_msg = "File read failed"; break;
-    case 4: error_msg = "File write failed"; break;
-    case 5: error_msg = "File seek failed"; break;
-    case 6: error_msg = "Memory allocation failed"; break;
-    case 7: error_msg = "Memory pool full"; break;
-    case 8: error_msg = "Invalid file handle"; break;
-    case 9: error_msg = "Invalid parameter"; break;
-    case 10: error_msg = "Disk full"; break;
-    default: error_msg = "Unknown error"; break;
-  }
-  
-  /* Display error to console (avoid logging functions that might throw exceptions) */
-  fprintf(stderr, "ERROR: %s (code %d)\n", error_msg, (int)error_code);
-  fflush(stderr);
-  
-  /* Update memory to reflect error code (for compatibility with game logic) */
-  if (MEM_POINTER_STORAGE_156 + 4 <= g_gameState->memory_pool_size) {
-    MEM_WRITE32(MEM_POINTER_STORAGE_156, error_code + '0');
-  }
-  #else
-  /* On DOS, use original game mechanism */
   undefined2 unaff_DS;
   
-  setup_function_context_wrapper();
+  /* Validate game state first */
+  VALIDATE_GAME_STATE();
   
-  /* Validate memory offset before writing */
-  if (validate_memory_offset(MEM_POINTER_STORAGE_156, sizeof(undefined2), "MEM_POINTER_STORAGE_156", "display_error")) {
-    MEM_WRITE32(MEM_POINTER_STORAGE_156, error_code + '0');
-  } else {
-    log_warning("display_error: Skipping memory write due to invalid offset");
+  /* Convert error code to ErrorCode enum for better handling */
+  ErrorCode skull_error = SKULL_ERROR_UNKNOWN;
+  const char* error_operation = "Game operation";
+  
+  /* Map numeric error codes to ErrorCode enum */
+  switch (error_code) {
+    case 0: skull_error = SKULL_ERROR_NONE; break;
+    case 1: skull_error = SKULL_ERROR_FILE_NOT_FOUND; error_operation = "File access"; break;
+    case 2: skull_error = SKULL_ERROR_FILE_ACCESS_DENIED; error_operation = "File access"; break;
+    case 3: skull_error = SKULL_ERROR_FILE_READ_FAILED; error_operation = "File read"; break;
+    case 4: skull_error = SKULL_ERROR_FILE_WRITE_FAILED; error_operation = "File write"; break;
+    case 5: skull_error = SKULL_ERROR_FILE_SEEK_FAILED; error_operation = "File seek"; break;
+    case 6: skull_error = SKULL_ERROR_MEMORY_ALLOCATION_FAILED; error_operation = "Memory allocation"; break;
+    case 7: skull_error = SKULL_ERROR_MEMORY_POOL_FULL; error_operation = "Memory pool"; break;
+    case 8: skull_error = SKULL_ERROR_INVALID_HANDLE; error_operation = "File operation"; break;
+    case 9: skull_error = SKULL_ERROR_INVALID_PARAMETER; error_operation = "Function call"; break;
+    default: skull_error = SKULL_ERROR_UNKNOWN; break;
   }
   
-  /* Try to print error string using game's print_string function */
-  if (validate_memory_offset(MEM_POINTER_STORAGE_155, sizeof(undefined2), "MEM_POINTER_STORAGE_155", "display_error")) {
-    /* MEM_POINTER_STORAGE_155 is an offset, not a pointer - need to convert to actual pointer */
-    char *error_string_ptr = (char *)(g_gameState->memory_pool + MEM_POINTER_STORAGE_155);
-    print_string(4, error_string_ptr);
-  } else {
-    log_warning("display_error: Skipping print_string due to invalid offset");
-  }
+  /* Log user-friendly error */
+  log_user_error(skull_error, error_operation, NULL);
   
-  refresh_display_wrapper_1(0);
+  /* Also display using original game mechanism if possible */
+  #ifdef _WIN32
+  __try {
   #endif
-  
+    setup_function_context_wrapper();
+    
+    /* Validate memory offset before writing */
+    if (validate_memory_offset(MEM_POINTER_STORAGE_156, sizeof(undefined2), "MEM_POINTER_STORAGE_156", "display_error")) {
+      MEM_WRITE32(MEM_POINTER_STORAGE_156, error_code + '0');
+    } else {
+      log_warning("display_error: Skipping memory write due to invalid offset");
+    }
+    
+    /* Try to print error string using game's print_string function */
+    if (validate_memory_offset(MEM_POINTER_STORAGE_155, sizeof(undefined2), "MEM_POINTER_STORAGE_155", "display_error")) {
+      print_string(4, MEM_POINTER_STORAGE_155);
+    } else {
+      log_warning("display_error: Skipping print_string due to invalid offset");
+      /* Fallback: display error directly to stderr */
+      display_user_error(skull_error, error_operation);
+    }
+    
+    refresh_display_wrapper_1(0);
+  #ifdef _WIN32
+  } __except(EXCEPTION_EXECUTE_HANDLER) {
+    log_exception_details(GetExceptionCode(), "display_error", __FILE__, __LINE__);
+    /* Fallback: display error directly if game display fails */
+    display_user_error(skull_error, error_operation);
+  }
+  #endif
   return;
 }
 
@@ -9563,131 +7014,6 @@ void entry(void)
   fprintf(stderr, "entry: Initialized stack_base_ptr at offset MEM_STACK_BASE\n");
   fflush(stderr);
   
-  #ifdef _WIN32
-  /* Simplified Windows version for testing - wrap DOS-specific calls in exception handlers */
-  __try {
-    initialize_dos_environment();
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    /* Skip logging to avoid nested exceptions */
-  }
-  
-  __try {
-    setup_memory_layout(&memory_size, &stack_base_ptr, &stack_ptr_1, &memory_ptr, &stack_ptr_2);
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    /* Initialize pointers to safe defaults */
-    stack_ptr_2 = stack_base_ptr;
-    stack_ptr_3 = stack_base_ptr;
-  }
-  
-  __try {
-    initialize_memory_region(stack_ptr_2, memory_ptr);
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    /* Skip logging to avoid nested exceptions */
-  }
-  
-  __try {
-    process_dos_interrupts();
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    /* Skip logging to avoid nested exceptions */
-  }
-  
-  __try {
-    parse_command_line();
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    /* Skip logging to avoid nested exceptions */
-  }
-  
-  __try {
-    initialize_game_environment();
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    /* Skip logging to avoid nested exceptions */
-  }
-  
-  /* Call game_init() */
-  __try {
-    game_init();
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    /* Skip logging to avoid nested exceptions */
-  }
-  
-  /* Windows game loop - process commands until game exits */
-  log_info("entry: Starting game loop");
-  fprintf(stderr, "entry: Starting game loop\n");
-  fflush(stderr);
-  
-  bool game_running = true;
-  int loop_count = 0;
-  const int MAX_LOOPS = 10000; /* Safety limit to prevent infinite loops */
-  
-  while (game_running && loop_count < MAX_LOOPS) {
-    loop_count++;
-    
-    __try {
-      /* Display prompt */
-      fprintf(stderr, "\n> ");
-      fflush(stderr);
-      
-      /* FIXED: Must parse input BEFORE processing commands */
-      /* parse_command_input reads from stdin and fills the command buffer */
-      /* Then process_commands executes the commands from the buffer */
-      int parse_result = 0;
-      __try {
-        parse_result = parse_command_input_wrapper();  /* Use wrapper to handle piped input */
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_info("entry: Exception in parse_command_input, treating as EOF");
-        fprintf(stderr, "ERROR: Exception in parse_command_input, exiting\n");
-        fflush(stderr);
-        parse_result = 0;  /* Treat exception as no input */
-      }
-      
-      /* Check if parsing failed (EOF, error, or no input) */
-      if (parse_result <= 0) {
-        log_info("entry: Input parsing failed, EOF, or no input (result=%d)", parse_result);
-        game_running = false;
-        break;
-      }
-      
-      /* Now process the commands that were parsed into the buffer */
-      int result = 0;
-      __try {
-        result = process_commands(MEM_COMMAND_BUFFER, 0);
-      } __except(EXCEPTION_EXECUTE_HANDLER) {
-        log_info("entry: Exception in process_commands, treating as error");
-        fprintf(stderr, "ERROR: Exception in process_commands, exiting\n");
-        fflush(stderr);
-        result = -1;  /* Treat exception as error */
-      }
-      
-      /* Check if game should exit */
-      if (result < 0 || MEM_READ32(MEM_GAME_EXIT_FLAG) != 0) {
-        log_info("entry: Game exit requested (result=%d)", result);
-        game_running = false;
-      }
-      
-      /* Check for quit command in command buffer */
-      if (MEM_READ32(MEM_COMMAND_BUFFER) == CMD_QUIT) {
-        log_info("entry: QUIT command received");
-        game_running = false;
-      }
-      
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-      /* CRITICAL: Don't call any functions that might throw exceptions */
-      /* Just set the flag and exit - no logging, no fprintf */
-      game_running = false;
-    }
-  }
-  
-  if (loop_count >= MAX_LOOPS) {
-    log_warning("entry: Game loop reached maximum iterations (%d)", MAX_LOOPS);
-    fprintf(stderr, "WARNING: Game loop limit reached\n");
-  }
-  
-  log_info("entry: Game loop exited after %d iterations", loop_count);
-  fprintf(stderr, "entry: Game loop exited\n");
-  fflush(stderr);
-  return;
-  #else
-  /* Original DOS implementation */
   /* Phase 2 Refactoring: Extract DOS environment initialization */
   initialize_dos_environment();
   
@@ -9724,7 +7050,6 @@ void entry(void)
   fprintf(stderr, "entry: About to call game_init()\n");
   fflush(stderr);
   game_init();
-  #endif
   log_info("entry: After game_init() - game_init returned");
   fprintf(stderr, "entry: After game_init() - program should be in interactive mode\n");
   fflush(stderr);
@@ -10097,29 +7422,15 @@ void process_dos_interrupts(void)
 void refresh_display(undefined2 unused1, undefined2 unused2)
 
 {
-  #ifdef _WIN32
-  /* On Windows, DOS-based display refresh is not supported */
-  /* Provide a no-op implementation that validates game state */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return;
-  }
-  
-  /* Update memory flags to indicate display was "refreshed" (for compatibility) */
-  if (MEM_POINTER_STORAGE_128 + 4 <= g_gameState->memory_pool_size) {
-    MEM_WRITE32(MEM_POINTER_STORAGE_128, 0);
-  }
-  if (MEM_INTERRUPT_LOOP_FLAG + 4 <= g_gameState->memory_pool_size) {
-    MEM_WRITE32(MEM_INTERRUPT_LOOP_FLAG, 0);
-  }
-  
-  return;
-  #else
-  /* Original DOS implementation */
   code **function_ptr_ptr;
   code *interrupt_handler;
   int remaining_count;
   int interrupt_index;
   undefined2 unaff_DS;
+  
+  #ifdef _WIN32
+  __try {
+  #endif
   
   if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
     log_error("refresh_display: Game state not initialized");
@@ -10139,8 +7450,17 @@ void refresh_display(undefined2 unused1, undefined2 unused2)
     if (mem_offset >= 0 && mem_offset < (int)g_gameState->memory_pool_size) {
       if ((*(byte *)(g_gameState->memory_pool + mem_offset) & 1) != 0) {
         interrupt_handler = (code *)swi(DOS_INT_21H);
+        /* On Windows, swi returns NULL, so skip the call */
         if (interrupt_handler != NULL) {
+          #ifdef _WIN32
+          __try {
+            (*interrupt_handler)();
+          } __except(EXCEPTION_EXECUTE_HANDLER) {
+            log_exception_details(GetExceptionCode(), "refresh_display: interrupt_handler", __FILE__, __LINE__);
+          }
+          #else
           (*interrupt_handler)();
+          #endif
         }
       }
     }
@@ -10149,30 +7469,70 @@ void refresh_display(undefined2 unused1, undefined2 unused2)
   } while (remaining_count != 0);
   handle_dos_interrupt_wrapper_0();
   interrupt_handler = (code *)swi(DOS_INT_21H);
+  /* On Windows, swi returns NULL, so skip the call */
   if (interrupt_handler != NULL) {
+    #ifdef _WIN32
+    __try {
+      (*interrupt_handler)();
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+      log_exception_details(GetExceptionCode(), "refresh_display: interrupt_handler (2)", __FILE__, __LINE__);
+    }
+    #else
     (*interrupt_handler)();
+    #endif
   }
   if (MEM_READ32(MEM_INTERRUPT_LOOP_FLAG) != 0) {
     /* Fixed: Read function pointer from memory pool */
     if (MEM_FUNCTION_PTR_2 >= 0 && MEM_FUNCTION_PTR_2 + 4 <= (int)g_gameState->memory_pool_size) {
       function_ptr_ptr = (code **)(g_gameState->memory_pool + MEM_FUNCTION_PTR_2);
       if (validate_function_pointer(*function_ptr_ptr, "refresh_display: MEM_FUNCTION_PTR_2")) {
+        #ifdef _WIN32
+        __try {
+          (**function_ptr_ptr)();
+        } __except(EXCEPTION_EXECUTE_HANDLER) {
+          log_exception_details(GetExceptionCode(), "refresh_display: MEM_FUNCTION_PTR_2", __FILE__, __LINE__);
+        }
+        #else
         (**function_ptr_ptr)();
+        #endif
       }
     }
   }
   interrupt_handler = (code *)swi(DOS_INT_21H);
+  /* On Windows, swi returns NULL, so skip the call */
   if (interrupt_handler != NULL) {
+    #ifdef _WIN32
+    __try {
+      (*interrupt_handler)();
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+      log_exception_details(GetExceptionCode(), "refresh_display: interrupt_handler (3)", __FILE__, __LINE__);
+    }
+    #else
     (*interrupt_handler)();
+    #endif
   }
   if (MEM_READ32(MEM_POINTER_STORAGE_128) != '\0') {
     interrupt_handler = (code *)swi(DOS_INT_21H);
+    /* On Windows, swi returns NULL, so skip the call */
     if (interrupt_handler != NULL) {
+      #ifdef _WIN32
+      __try {
+        (*interrupt_handler)();
+      } __except(EXCEPTION_EXECUTE_HANDLER) {
+        log_exception_details(GetExceptionCode(), "refresh_display: interrupt_handler (4)", __FILE__, __LINE__);
+      }
+      #else
       (*interrupt_handler)();
+      #endif
     }
   }
-  return;
+  
+  #ifdef _WIN32
+  } __except(EXCEPTION_EXECUTE_HANDLER) {
+    log_exception_details(GetExceptionCode(), "refresh_display", __FILE__, __LINE__);
+  }
   #endif
+  return;
 }
 
 
@@ -10182,26 +7542,6 @@ void refresh_display(undefined2 unused1, undefined2 unused2)
 void handle_dos_interrupt(undefined2 interrupt_id)
 
 {
-  #ifdef _WIN32
-  /* On Windows, DOS interrupts are not supported */
-  /* Log the call and return gracefully */
-  log_info("handle_dos_interrupt: Called with interrupt_id=0x%x (DOS-only, skipping on Windows)", interrupt_id);
-  
-  /* Validate game state */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    log_warning("handle_dos_interrupt: Game state not initialized");
-    return;
-  }
-  
-  /* Update memory to indicate interrupt was "handled" (for compatibility) */
-  if (MEM_INTERRUPT_LOOP_FLAG + 4 <= g_gameState->memory_pool_size) {
-    /* Set flag to 0 to indicate processing complete */
-    MEM_WRITE32(MEM_INTERRUPT_LOOP_FLAG, 0);
-  }
-  
-  return;
-  #else
-  /* Original DOS implementation */
   code **function_ptr_ptr;
   code *interrupt_handler;
   undefined2 unaff_DS;
@@ -10210,7 +7550,15 @@ void handle_dos_interrupt(undefined2 interrupt_id)
     /* Fixed: Read function pointer from memory pool */
     function_ptr_ptr = (code **)(g_gameState->memory_pool + MEM_FUNCTION_PTR_2);
     if (validate_function_pointer(*function_ptr_ptr, "handle_dos_interrupt: MEM_FUNCTION_PTR_2")) {
+      #ifdef _WIN32
+      __try {
+        ((void (*)(int))(**function_ptr_ptr))(STACK_VALUE_DEFAULT);
+      } __except(EXCEPTION_EXECUTE_HANDLER) {
+        log_exception_details(GetExceptionCode(), "handle_dos_interrupt: MEM_FUNCTION_PTR_2", __FILE__, __LINE__);
+      }
+      #else
       ((void (*)(int))(**function_ptr_ptr))(STACK_VALUE_DEFAULT);
+      #endif
     }
   }
   interrupt_handler = (code *)swi(DOS_INT_21H);
@@ -10226,7 +7574,6 @@ void handle_dos_interrupt(undefined2 interrupt_id)
     }
   }
   return;
-  #endif
 }
 
 
@@ -10389,28 +7736,10 @@ void flush_file_buffers(void)
 /* Helper: Initialize function context and check early exit conditions */
 static void initialize_function_context(void)
 {
-  /* Validate memory pool before accessing */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    log_error("initialize_function_context: Game state or memory pool not initialized");
-    return;
-  }
-  
-  /* Ensure MEM_INTERRUPT_LOOP_FLAG is initialized before reading */
-  if (MEM_INTERRUPT_LOOP_FLAG + 4 <= g_gameState->memory_pool_size) {
-    if (MEM_READ32(MEM_INTERRUPT_LOOP_FLAG) == RETURN_VALUE_STOP) {
-      MEM_WRITE32(MEM_INTERRUPT_LOOP_FLAG, 0);
-    }
-  }
-  
   log_info("initialize_function_context: Checking MEM_READ32(MEM_INTERRUPT_LOOP_FLAG)");
   
-  uint32_t mem_97e = 0;
-  if (MEM_INTERRUPT_LOOP_FLAG + 4 <= g_gameState->memory_pool_size) {
-    mem_97e = MEM_READ32(MEM_INTERRUPT_LOOP_FLAG);
-    log_info("initialize_function_context: MEM_READ32(MEM_INTERRUPT_LOOP_FLAG) = %u (0x%08x)", mem_97e, mem_97e);
-  } else {
-    log_warning("initialize_function_context: MEM_INTERRUPT_LOOP_FLAG (0x%x) out of bounds", MEM_INTERRUPT_LOOP_FLAG);
-  }
+  uint32_t mem_97e = MEM_READ32(MEM_INTERRUPT_LOOP_FLAG);
+  log_info("initialize_function_context: MEM_READ32(MEM_INTERRUPT_LOOP_FLAG) = %u (0x%08x)", mem_97e, mem_97e);
   
   /* Force early exit - the memory might not be initialized correctly */
   /* This avoids the problematic do-while loop that causes infinite hang */
@@ -10420,18 +7749,6 @@ static void initialize_function_context(void)
 /* Helper: Process environment variables (currently skipped to prevent crashes) */
 static void process_environment_variables_setup(void)
 {
-  /* Validate memory pool before accessing */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    log_error("process_environment_variables_setup: Game state or memory pool not initialized");
-    return;
-  }
-  
-  /* Ensure MEM_ENVIRONMENT_VAR is initialized before reading */
-  if (MEM_ENVIRONMENT_VAR + 4 > g_gameState->memory_pool_size) {
-    log_warning("process_environment_variables_setup: MEM_ENVIRONMENT_VAR (0x%x) out of bounds", MEM_ENVIRONMENT_VAR);
-    return;
-  }
-  
   int env_var_value = MEM_READ32(MEM_ENVIRONMENT_VAR);
   log_info("process_environment_variables_setup: MEM_READ32(MEM_ENVIRONMENT_VAR) = %d", env_var_value);
   
@@ -10452,40 +7769,7 @@ static void process_file_handles_setup(void)
   uint extraout_DX;
   bool should_set_flag;
   
-  /* Comprehensive validation at function start */
-  if (g_gameState == NULL) {
-    log_error("process_file_handles_setup: g_gameState is NULL");
-    return;
-  }
-  if (g_gameState->memory_pool == NULL) {
-    log_error("process_file_handles_setup: memory_pool is NULL");
-    return;
-  }
-  if (g_gameState->memory_pool_size < MEM_POINTER_STORAGE + 10) {
-    log_error("process_file_handles_setup: memory_pool_size (%u) too small for MEM_POINTER_STORAGE + 10 (%u)", 
-              (unsigned int)g_gameState->memory_pool_size, (unsigned int)(MEM_POINTER_STORAGE + 10));
-    return;
-  }
-  
   log_info("process_file_handles_setup: Starting file handle loop");
-  
-  /* Ensure MEM_POINTER_STORAGE area is initialized before accessing it */
-  #ifdef _WIN32
-  __try {
-    if (MEM_POINTER_STORAGE + 10 <= g_gameState->memory_pool_size) {
-      memset(g_gameState->memory_pool + MEM_POINTER_STORAGE, 0, 10);
-    } else {
-      log_warning("process_file_handles_setup: MEM_POINTER_STORAGE + 10 exceeds memory pool size");
-    }
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    log_exception_details(GetExceptionCode(), "process_file_handles_setup: memset initialization", __FILE__, __LINE__);
-    /* Continue - individual file handles will be checked individually */
-  }
-  #else
-  if (MEM_POINTER_STORAGE + 10 <= g_gameState->memory_pool_size) {
-    memset(g_gameState->memory_pool + MEM_POINTER_STORAGE, 0, 10);
-  }
-  #endif
   
   file_index = 4;
   do {
@@ -10495,9 +7779,37 @@ static void process_file_handles_setup(void)
     uint32_t flags_offset = file_index + MEM_POINTER_STORAGE;
     if (flags_offset + sizeof(byte) <= g_gameState->memory_pool_size) {
       #ifdef _WIN32
-      /* Skip file handle processing on Windows - this is DOS-specific functionality */
-      /* The interrupt handlers don't work on Windows anyway, so this entire block is a no-op */
-      log_info("process_file_handles_setup: Skipping file handle %d (DOS-specific functionality not needed on Windows)", file_index);
+      __try {
+        flags_byte_ptr = (byte *)(g_gameState->memory_pool + flags_offset);
+        log_info("process_file_handles_setup: Accessing memory at offset 0x%x", flags_offset);
+        
+        should_set_flag = false;
+        *flags_byte_ptr = *flags_byte_ptr & BIT_MASK_0xbf;
+        
+        log_info("process_file_handles_setup: About to call swi(DOS_INT_21H)");
+        code *interrupt_handler = (code *)swi(DOS_INT_21H);
+        
+        /* On Windows, swi returns NULL, so skip the call */
+        /* The interrupt handler is a no-op anyway, so skipping it is safe */
+        if (interrupt_handler != NULL) {
+          log_info("process_file_handles_setup: Calling interrupt handler");
+          (*interrupt_handler)();
+        } else {
+          log_info("process_file_handles_setup: Skipped interrupt handler call (NULL on Windows)");
+        }
+        
+        /* Initialize extraout_DX to safe value since interrupt handler doesn't set it on Windows */
+        /* On Windows, interrupt handlers don't run, so extraout_DX remains uninitialized */
+        extraout_DX = 0; /* Initialize to safe default */
+        
+        if ((!should_set_flag) && (interrupt_handler != NULL && (extraout_DX & OBJ_FLAG_READABLE) != 0)) {
+          flags_byte_ptr = (byte *)(g_gameState->memory_pool + flags_offset);
+          *flags_byte_ptr = *flags_byte_ptr | BIT_MASK_64;
+        }
+      } __except(EXCEPTION_EXECUTE_HANDLER) {
+        log_exception_details(GetExceptionCode(), "process_file_handles_setup: file handle processing", __FILE__, __LINE__);
+        /* Continue to next file index - don't crash on individual file handle errors */
+      }
       #else
       flags_byte_ptr = (byte *)(g_gameState->memory_pool + flags_offset);
       should_set_flag = false;
@@ -10556,27 +7868,6 @@ void setup_function_context(undefined reg_ax,undefined2 reg_bx,undefined reg_cx,
   log_info("setup_function_context: Entered function");
   fprintf(stderr, "setup_function_context: Entered function\n");
   fflush(stderr);
-  
-  /* Comprehensive validation at function start */
-  if (g_gameState == NULL) {
-    log_error("setup_function_context: g_gameState is NULL");
-    fprintf(stderr, "ERROR: setup_function_context: g_gameState is NULL\n");
-    fflush(stderr);
-    return;
-  }
-  if (g_gameState->memory_pool == NULL) {
-    log_error("setup_function_context: memory_pool is NULL");
-    fprintf(stderr, "ERROR: setup_function_context: memory_pool is NULL\n");
-    fflush(stderr);
-    return;
-  }
-  if (g_gameState->memory_pool_size < MEM_POINTER_STORAGE + 10) {
-    log_error("setup_function_context: memory_pool_size (%u) too small for MEM_POINTER_STORAGE + 10 (%u)", 
-              (unsigned int)g_gameState->memory_pool_size, (unsigned int)(MEM_POINTER_STORAGE + 10));
-    fprintf(stderr, "ERROR: setup_function_context: memory_pool_size too small\n");
-    fflush(stderr);
-    return;
-  }
   
   /* Phase 1 Refactoring: Extract initialization */
   initialize_function_context();
@@ -10652,13 +7943,6 @@ void setup_function_context(undefined reg_ax,undefined2 reg_bx,undefined reg_cx,
 uint verify_game_data(void)
 
 {
-  #ifdef _WIN32
-  /* On Windows, skip DOS-specific memory checksumming that starts at NULL pointer */
-  /* This function checksums DOS low memory (starting at address 0), which is invalid on Windows */
-  /* Return success value for compatibility */
-  return 0; /* 0 = success/valid checksum */
-  #else
-  /* Original DOS implementation */
   byte *data_ptr;
   byte current_byte;
   byte checksum_high;
@@ -10685,7 +7969,6 @@ uint verify_game_data(void)
     checksum = 1;
   }
   return checksum;
-  #endif
 }
 
 
@@ -16247,11 +13530,6 @@ uint string_compare(char *str1,char *str2,uint length)
     }
   }
   
-  /* FIXED: Wrap entire comparison logic in exception handling for robustness */
-  #ifdef _WIN32
-  __try {
-  #endif
-  
   remaining_length = length;
   str1_current = str1;
   if (length != 0) {
@@ -16260,10 +13538,6 @@ uint string_compare(char *str1,char *str2,uint length)
       remaining_length = remaining_length - 1;
       str1_ptr = str1_current;
       str1_current = str1_current + 1;
-      /* Validate pointer before dereferencing */
-      if ((uintptr_t)str1_ptr >= (uintptr_t)g_gameState->memory_pool + g_gameState->memory_pool_size) {
-        return 1; /* Out of bounds - strings not equal */
-      }
     } while (*str1_ptr != '\0');
     matched_length = length - remaining_length;
     do {
@@ -16273,11 +13547,6 @@ uint string_compare(char *str1,char *str2,uint length)
       str1 = str1 + 1;
       str1_ptr = str2;
       str2 = str2 + 1;
-      /* Validate pointers before dereferencing */
-      if ((uintptr_t)str1_ptr >= (uintptr_t)g_gameState->memory_pool + g_gameState->memory_pool_size ||
-          (uintptr_t)str2_ptr >= (uintptr_t)g_gameState->memory_pool + g_gameState->memory_pool_size) {
-        return 1; /* Out of bounds - strings not equal */
-      }
     } while (*str1_ptr == *str2_ptr);
     
     /* FIXED: Validate negative index access is within bounds */
@@ -16316,14 +13585,6 @@ uint string_compare(char *str1,char *str2,uint length)
     }
     length = ~length;
   }
-  
-  #ifdef _WIN32
-  } __except(EXCEPTION_EXECUTE_HANDLER) {
-    /* Exception during comparison - return non-zero (strings not equal) */
-    return 1;
-  }
-  #endif
-  
   return length;
 }
 
@@ -16656,37 +13917,6 @@ uint get_char(void)
 undefined2 call_dos_interrupt(byte interrupt_id,int regs_ptr,undefined2 *result_ptr)
 
 {
-  #ifdef _WIN32
-  /* On Windows, DOS interrupts are not supported */
-  /* Return a safe default result structure */
-  log_info("call_dos_interrupt: Called with interrupt_id=0x%x (DOS-only, returning default on Windows)", interrupt_id);
-  
-  /* Validate game state and result pointer */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    log_warning("call_dos_interrupt: Game state not initialized");
-    if (result_ptr != NULL) {
-      /* Initialize result structure to safe defaults */
-      for (int i = 0; i < 7; i++) {
-        result_ptr[i] = 0;
-      }
-    }
-    return 0;
-  }
-  
-  /* Initialize result structure if provided */
-  if (result_ptr != NULL) {
-    result_ptr[0] = 0; /* AX */
-    result_ptr[1] = 0; /* DI */
-    result_ptr[2] = 0; /* SI */
-    result_ptr[3] = 0; /* BX */
-    result_ptr[4] = 0; /* CX */
-    result_ptr[5] = 0; /* DX */
-    result_ptr[6] = 0; /* Carry flag (no error) */
-  }
-  
-  return 0; /* Success */
-  #else
-  /* Original DOS implementation */
   undefined2 reg_cx;
   undefined2 reg_dx;
   undefined2 result_value;
@@ -16731,7 +13961,6 @@ undefined2 call_dos_interrupt(byte interrupt_id,int regs_ptr,undefined2 *result_
   }
   result_ptr[6] = (uint)has_error;
   return result_value;
-  #endif
 }
 
 
@@ -17427,32 +14656,6 @@ void clear_display_area(void)
 void handle_display_mode(uint mode)
 
 {
-  #ifdef _WIN32
-  /* On Windows, skip DOS-specific display mode handling */
-  /* Provide a minimal implementation that updates memory state for compatibility */
-  if (g_gameState == NULL || g_gameState->memory_pool == NULL) {
-    return;
-  }
-  
-  /* Update buffer storage flag based on mode */
-  if (MEM_BUFFER_STORAGE + 4 <= g_gameState->memory_pool_size) {
-    if (mode < 3) {
-      if ((char)mode == '\x01') {
-        /* Mode 1: Clear display flag if set */
-        if (MEM_READ32(MEM_BUFFER_STORAGE) != '\0') {
-          MEM_WRITE32(MEM_BUFFER_STORAGE, 0);
-        }
-      }
-      else {
-        /* Mode 0 or 2: Initialize/reset display */
-        MEM_WRITE32(MEM_BUFFER_STORAGE, 1);
-      }
-    }
-  }
-  
-  return;
-  #else
-  /* Original DOS implementation */
   undefined2 unaff_DS;
   
   display_begin();
@@ -17469,7 +14672,6 @@ void handle_display_mode(uint mode)
   }
   display_end();
   return;
-  #endif
 }
 
 
