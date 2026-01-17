@@ -34,12 +34,46 @@
 /* Global game state */
 GameState* g_gameState = NULL;
 
+/* Piped input detection - set once at startup */
+static BOOL g_stdin_is_piped = FALSE;
+static BOOL g_stdin_checked = FALSE;
+
 /* File opening state - tracks which file to open next in game_init sequence */
 static int g_file_open_index = 0;
 
 /* Reset file open index - useful for test initialization */
 void reset_file_open_index(void) {
     g_file_open_index = 0;
+}
+
+/* Check if stdin is piped/redirected (not a console) */
+static BOOL is_stdin_piped(void) {
+    if (g_stdin_checked) {
+        return g_stdin_is_piped;
+    }
+    
+    g_stdin_checked = TRUE;
+    
+    #ifdef _WIN32
+    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD dwMode = 0;
+    
+    /* If GetConsoleMode fails, stdin is redirected/piped */
+    g_stdin_is_piped = (hStdin == INVALID_HANDLE_VALUE || !GetConsoleMode(hStdin, &dwMode));
+    
+    if (g_stdin_is_piped) {
+        log_info("is_stdin_piped: Detected piped/redirected stdin");
+        fprintf(stderr, "INFO: Detected piped/redirected stdin - skipping console-specific initialization\n");
+        fflush(stderr);
+    } else {
+        log_info("is_stdin_piped: Detected console stdin");
+    }
+    #else
+    /* On non-Windows, assume console */
+    g_stdin_is_piped = FALSE;
+    #endif
+    
+    return g_stdin_is_piped;
 }
 
 /* File names in the order they're opened during game_init */
@@ -1239,6 +1273,13 @@ void setup_function_context_wrapper(void) {
         log_error("setup_function_context_wrapper: g_gameState is NULL!");
         fprintf(stderr, "ERROR: setup_function_context_wrapper: g_gameState is NULL!\n");
         fflush(stderr);
+        return;
+    }
+    
+    /* Skip console-specific setup when stdin is piped/redirected */
+    /* This prevents crashes when reading commands from a file or pipe */
+    if (is_stdin_piped()) {
+        // log_info("setup_function_context_wrapper: Skipping setup (stdin is piped)");
         return;
     }
     
