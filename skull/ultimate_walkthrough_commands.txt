@@ -1,0 +1,519 @@
+look
+inventory
+examine bag
+up
+look
+southeast
+look
+southwest
+look
+southwest
+look
+examine plaque
+east
+look
+south
+look
+south
+look
+examine monument
+south
+look
+west
+look
+north
+look
+take shovel
+south
+look
+east
+look
+south
+look
+south
+look
+examine mansion
+north
+look
+west
+look
+examine stable
+take shovel
+east
+look
+south
+look
+examine garden shed
+north
+look
+east
+look
+north
+look
+examine cemetery
+south
+look
+examine graveyard
+examine graves
+examine grassy grave
+dig grave with shovel
+dig grave with shovel
+examine coffin
+open coffin
+look
+south
+look
+examine mausoleum
+west
+look
+examine marble coffin
+examine granite coffin
+open marble coffin
+take body of lord john
+examine granite coffin
+push slab
+west
+look
+down
+look
+north
+look
+examine racks
+take bottle
+south
+look
+south
+look
+examine table
+read parchment
+take parchment
+north
+look
+east
+look
+examine skeleton
+take boney finger
+south
+look
+examine rack
+examine iron maiden
+examine corner
+north
+look
+west
+look
+north
+look
+examine fireplace
+take flint
+take iron
+east
+look
+north
+look
+up
+look
+examine gallery
+west
+look
+examine bedroom
+take torch
+east
+look
+down
+look
+south
+look
+examine conservatory
+examine bookcase
+take black book
+read black book
+north
+look
+west
+look
+examine sitting room
+search room
+take spider
+east
+look
+south
+look
+down
+look
+south
+look
+examine laboratory
+south
+look
+examine corner
+enter opening
+look
+examine cage
+examine skeleton
+north
+look
+south
+look
+south
+look
+examine inferno
+examine altar
+put body on altar
+take ashes
+north
+look
+west
+look
+examine river
+west
+look
+examine dinghy
+examine boatman
+wait
+give coin to boatman
+board dinghy
+wait
+wait
+disembark
+look
+north
+look
+examine cavern
+south
+look
+west
+look
+examine cove
+examine shroud
+search shroud
+east
+look
+north
+look
+west
+look
+examine cliffs
+west
+look
+examine beach
+west
+look
+examine ship
+examine cutter
+board ship
+look
+down
+look
+examine chest
+open chest
+look in chest
+up
+look
+south
+look
+examine cabin
+examine cupboard
+open cupboard
+look in cupboard
+north
+look
+disembark
+look
+east
+look
+east
+look
+north
+look
+examine rocks
+examine crevice
+enter crevice
+look
+north
+look
+examine passage
+east
+look
+examine wall
+west
+look
+south
+look
+up
+look
+examine bushes
+down
+look
+north
+look
+west
+look
+examine tunnel
+southwest
+look
+examine tunnel
+up
+look
+examine forest
+down
+look
+northeast
+look
+up
+look
+examine guard shack
+examine floor
+pry floorboard with crowbar
+look in hole
+west
+look
+south
+look
+south
+look
+south
+look
+west
+look
+examine kitchen
+examine kettle
+examine fireplace
+put black skull in kettle
+put vampire blood in kettle
+put spider in kettle
+put boney finger in kettle
+put old bones in kettle
+put water in kettle
+strike flint with iron
+wait
+wait
+take potion
+east
+look
+north
+look
+north
+look
+north
+look
+east
+look
+examine drawing room
+examine ouija board
+examine sofa
+west
+look
+south
+look
+west
+look
+examine billiard room
+examine table
+east
+look
+north
+look
+west
+look
+examine great hall
+examine spinet
+east
+look
+south
+look
+examine breakfast parlour
+north
+look
+east
+look
+south
+look
+examine dining room
+examine table
+north
+look
+west
+look
+north
+look
+up
+look
+north
+look
+examine bedroom
+examine bed
+south
+look
+west
+look
+examine gallery
+examine paintings
+east
+look
+south
+look
+down
+look
+south
+look
+examine foyer
+examine fireplace
+examine coat of arms
+north
+look
+up
+look
+examine balcony
+examine railing
+down
+look
+south
+look
+east
+look
+examine conservatory
+west
+look
+north
+look
+west
+look
+south
+look
+west
+look
+examine guest parlour
+east
+look
+north
+look
+east
+look
+north
+look
+up
+look
+west
+look
+examine lady bedroom
+examine bible
+read bible
+east
+look
+northwest
+look
+examine parlour
+southeast
+look
+west
+look
+examine sitting room
+east
+look
+down
+look
+south
+look
+west
+look
+south
+look
+down
+look
+south
+look
+examine wine cellar
+examine racks
+north
+look
+west
+look
+south
+look
+examine smuggler lair
+examine skeleton
+north
+look
+east
+look
+south
+look
+south
+look
+examine torture chamber
+examine dark opening
+enter opening
+look
+examine dungeon
+examine cage
+wait
+north
+look
+north
+look
+east
+look
+south
+look
+south
+look
+examine tunnel
+south
+look
+examine cliffs
+east
+look
+examine inferno edge
+examine plaque
+examine rock
+west
+look
+north
+look
+west
+look
+examine passage
+west
+look
+examine entrance
+south
+look
+examine cove
+examine shroud
+north
+look
+east
+look
+north
+look
+examine river
+board dinghy
+wait
+wait
+wait
+disembark
+look
+north
+look
+examine cavern
+examine walls
+south
+look
+west
+look
+examine river
+east
+look
+south
+look
+examine cove
+up
+look
+examine jewels
+examine cavern
+examine walls
+take treasure
+look
+inventory
+quit
