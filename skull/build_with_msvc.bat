@@ -13,7 +13,7 @@ echo.
 echo Compiling Skull Game...
 echo.
 
-cl /W3 /O2 /MD /Fe:skull.exe dos_compat.c main.c skull_ported.c function_stubs.c display_adapter.c game_window.c /wd4244 /wd4312 /wd4013 /wd4311 /wd4101 /wd4142 /wd4047 /wd4024 /wd4018 /wd4146 /wd4554 /wd4700 /wd4996 /link kernel32.lib user32.lib gdi32.lib > build_output.txt 2>&1
+cl /W3 /O2 /MD /Fe:skull.exe dos_compat.c main.c skull_ported.c function_stubs.c display_adapter.c game_window.c simple_game_engine.c /wd4244 /wd4312 /wd4013 /wd4311 /wd4101 /wd4142 /wd4047 /wd4024 /wd4018 /wd4146 /wd4554 /wd4700 /wd4996 /link kernel32.lib user32.lib gdi32.lib > build_output.txt 2>&1
 type build_output.txt
 
 if %ERRORLEVEL% EQU 0 (

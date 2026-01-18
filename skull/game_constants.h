@@ -7,6 +7,44 @@
 #define GAME_CONSTANTS_H
 
 /* ============================================================
+ * SAFETY LIMITS - Loop and Buffer Bounds
+ * ============================================================ */
+
+/* Loop safety limits to prevent infinite loops */
+#define MAX_LOOPS                       10000   /* Maximum main game loop iterations (increased for full walkthrough support) */
+#define MAX_GAME_LOOP_ITERATIONS        100     /* Maximum main game loop iterations (alias) */
+#define MAX_COMMAND_PROCESS_LOOPS       5       /* Maximum command processing loops */
+#define MAX_PROCESS_LOOPS               5       /* Alias for MAX_COMMAND_PROCESS_LOOPS */
+#define MAX_ZERO_RESULT_ITERATIONS      2       /* Maximum consecutive zero results */
+#define MAX_ZERO_ITERATIONS             2       /* Alias for MAX_ZERO_RESULT_ITERATIONS */
+#define MAX_CONSECUTIVE_ERRORS          5       /* Maximum consecutive errors before exit */
+#define MAX_TOTAL_ERRORS                1000    /* Maximum total errors in game loop (increased for automated walkthrough testing) */
+#define MAX_EOF_ATTEMPTS                2       /* Maximum EOF attempts before exit */
+#define MAX_SAME_COMMAND_REPEATS        10      /* Maximum same command repetitions */
+#define MAX_SAME_COMMAND                10      /* Alias for MAX_SAME_COMMAND_REPEATS */
+#define MAX_ZERO_RESULTS                10      /* Maximum zero results before exit */
+#define MAX_INNER_LOOPS                 10      /* Maximum inner loop iterations */
+
+/* File and data loading limits */
+#define MAX_ITEMS_TO_READ               5000    /* Maximum items to read from file */
+#define MAX_FILE_HANDLES                10      /* Maximum DOS file handles */
+#define MAX_STRING_LENGTH               256     /* Maximum string length */
+#define MAX_COMMAND_LENGTH              128     /* Maximum command input length */
+#define MAX_PATH_LENGTH                 260     /* Standard Windows MAX_PATH */
+#define MAX_LONG_PATH_LENGTH            32767   /* Windows long path support */
+
+/* Buffer sizes */
+#define BUFFER_SIZE_SMALL               64      /* Small buffer (64 bytes) */
+#define BUFFER_SIZE_MEDIUM              256     /* Medium buffer (256 bytes) */
+#define BUFFER_SIZE_LARGE               1024    /* Large buffer (1KB) */
+#define BUFFER_SIZE_XLARGE              4096    /* Extra large buffer (4KB) */
+
+/* Memory pool allocation */
+#define MEMORY_POOL_SIZE                0x10000 /* 64KB memory pool */
+#define TEMP_BUFFER_OFFSET              0x7C00  /* Temporary buffer location */
+#define RESULT_BUFFER_OFFSET            0x7B00  /* Result buffer location */
+
+/* ============================================================
  * MEMORY ADDRESSES - Game State Variables
  * ============================================================ */
 

@@ -5,6 +5,12 @@
 #ifndef DOS_COMPAT_H
 #define DOS_COMPAT_H
 
+/* Debug logging control - define to enable verbose debug output */
+/* Comment out or set to 0 for production builds to reduce overhead */
+#ifndef ENABLE_DEBUG_LOGGING
+#define ENABLE_DEBUG_LOGGING 0  /* 1 = enabled, 0 = disabled */
+#endif
+
 /* Windows 11 Compatibility: Target Windows 10/11 APIs */
 #ifndef _WIN32_WINNT
 #define _WIN32_WINNT 0x0A00  /* Windows 10 / Windows Server 2016 */
@@ -163,6 +169,7 @@ undefined2 handle_special_command_wrapper(void);
 int check_command_conditions_wrapper(void);
 int process_game_action_wrapper(void);
 int parse_command_input_wrapper(void);
+const char* get_last_command_line(void); /* Get full command line for simple game engine */
 int find_matching_objects_wrapper(uint param_1);
 undefined2 match_game_objects_wrapper(uint *param_1, uint *param_2);
 int process_command_parameters_wrapper_5(uint *param_1, int param_2, int param_3, uint *param_4, uint *param_5);
@@ -284,6 +291,22 @@ void log_verbose(const char* format, ...);
 
 /* Write debug message to both stderr and log file */
 void log_debug_message(const char* format, ...);
+
+/* Conditional debug logging macros - can be disabled for production */
+#if ENABLE_DEBUG_LOGGING
+    #define LOG_DEBUG(fmt, ...) log_debug(fmt, ##__VA_ARGS__)
+    #define LOG_VERBOSE(fmt, ...) log_verbose(fmt, ##__VA_ARGS__)
+    #define LOG_DEBUG_MSG(fmt, ...) log_debug_message(fmt, ##__VA_ARGS__)
+#else
+    #define LOG_DEBUG(fmt, ...) ((void)0)  /* No-op in production */
+    #define LOG_VERBOSE(fmt, ...) ((void)0)  /* No-op in production */
+    #define LOG_DEBUG_MSG(fmt, ...) ((void)0)  /* No-op in production */
+#endif
+
+/* Always-enabled logging (errors, warnings, info) */
+#define LOG_ERROR(fmt, ...) log_error(fmt, ##__VA_ARGS__)
+#define LOG_WARNING(fmt, ...) log_warning(fmt, ##__VA_ARGS__)
+#define LOG_INFO(fmt, ...) log_info(fmt, ##__VA_ARGS__)
 
 /* Error handling functions */
 const char* error_code_to_string(ErrorCode error_code);
