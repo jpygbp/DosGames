@@ -1,0 +1,198 @@
+================================================================================
+SKULLDUGGERY - STORY EXTRACTION OPTION 1: CURRENT READABLE CONTENT
+================================================================================
+
+SOURCE: Extracted from COMPLETE_STORY_CONTENT.md, SKULL.DOC, and 
+        simple_game_engine.c (currently playable content)
+
+DATE: 2026-01-18
+METHOD: Manual extraction from readable source files
+COMPLETENESS: ~10% of original game (10 locations, core story)
+
+================================================================================
+THE LEGEND OF WILLIAM THE WILDHEART
+================================================================================
+
+Skullduggery is set on the southeast coast of eighteenth-century England, 
+during a time when smuggling goods was a common enterprise. The King's tax 
+on imports made smuggling a necessity for many families.
+
+William the Wildheart, a member of the Royal Family Leominster, was heavily 
+involved in smuggling. When he was caught, his own family betrayed him and 
+turned him in. William was found guilty and executed.
+
+William's hatred was so intense that it prompted his return as a ghost. He 
+had hidden a massive treasure which his family coveted, but which he desired 
+to keep for himself. As an angry spirit, William wants to make his family 
+pay for their sins while protecting his treasure against all intruders.
+
+You are a fortune hunter who has learned of the treasure hidden at Elysium 
+Downs, William's estate. Your goal is to explore the estate, solve its 
+mysteries, and claim the treasure. But beware - William's ghost still haunts 
+these grounds.
+
+================================================================================
+LOCATION DESCRIPTIONS (10 Playable Locations)
+================================================================================
+
+--- LOCATION 1: Underground Tunnel (STARTING POINT) ---
+You are in a damp underground tunnel. The tree roots growing across the 
+tunnel make passage very difficult here. There's a hole above you.
+
+Items: None
+Exits: Up
+
+--- LOCATION 2: Dark Forest ---
+You are surrounded by a dense, dark forest with thick bushes all around. 
+A trap door is embedded in the ground.
+
+Items: None
+Exits: Southeast, Down (to tunnel)
+
+--- LOCATION 3: Dirt Road ---
+You are on a dirt road. The path continues northeast and southwest.
+
+Items: None
+Exits: Northeast (to Dark Forest), Southwest (to Recessed Entrance)
+
+--- LOCATION 4: Recessed Entrance to Elysium Downs ---
+You are at a recessed section of the wrought-iron fence. This is an entrance 
+to a large estate. A sign reads 'Elysium Downs'.
+
+Items: None
+Exits: Northeast (to Dirt Road), East (to Guard Shack)
+
+--- LOCATION 5: Guard Shack ---
+You are in an abandoned guard shack. There's a strong, musty odor here. 
+Cobwebs hang from the ceiling and mouse tracks run across the dusty floor.
+
+Items: Brass Lamp, Shovel
+Exits: West (to Recessed Entrance), South (to Mansion Front)
+Notes: The guards fled long ago, frightened by William's ghost.
+
+--- LOCATION 6: Front of Mansion ---
+You are standing in front of a large, imposing mansion. Gothic architecture 
+looms before you. The windows are dark and foreboding.
+
+Items: None
+Exits: North (to Guard Shack), North (to Mansion Entrance)
+
+--- LOCATION 7: Mansion Entrance ---
+You are in the mansion entrance. A grand staircase leads upward. Doors lead 
+to various rooms.
+
+Items: None
+Exits: South (to Mansion Front), Down (to Cellar)
+
+--- LOCATION 8: Cellar ---
+You are in a damp cellar. Stone walls surround you and the air is cold. 
+A passage leads deeper underground.
+
+Items: None
+Exits: Up (to Mansion Entrance), North (to Laboratory)
+
+--- LOCATION 9: Laboratory ---
+You are in an old laboratory. Dusty bottles and strange apparatus fill the 
+shelves. A parchment lies on the table.
+
+Items: Magic Potion (glows with eerie light)
+Exits: South (to Cellar), Down (to Cavern - requires potion)
+Notes: This was William's laboratory where he conducted strange experiments.
+
+--- LOCATION 10: Cavern of Jewels (FINAL LOCATION) ---
+You have entered a dimly-lit cavern, with multi-coloured jewels embedded in 
+the walls. The colouring of the jewels emit a soft radiance, playing on the 
+varied shapes of rock walls to create animated silhouettes throughout the 
+cavern. The large quantity of precious jewels, in all their varied shapes 
+and sizes, make up a large and priceless treasure; fit for all the kings 
+through the ages!
+
+Items: Ancient Treasure (William's fortune)
+Exits: Up (to Laboratory)
+Notes: Taking the treasure triggers the winning ending.
+
+================================================================================
+ITEM CATALOG
+================================================================================
+
+1. BRASS LAMP
+   Location: Guard Shack
+   Description: Provides light in dark areas
+   Usage: Essential for exploring
+
+2. SHOVEL
+   Location: Guard Shack
+   Description: Can be used for digging
+   Usage: Tool for excavation
+
+3. MAGIC POTION
+   Location: Laboratory
+   Description: Glows with an eerie light
+   Usage: REQUIRED to access Cavern of Jewels
+   Special: Created by William, protects from magical barriers
+
+4. ANCIENT TREASURE
+   Location: Cavern of Jewels
+   Description: William's hidden fortune
+   Usage: Taking this wins the game
+   Special: Triggers the curse transfer
+
+================================================================================
+THE WINNING ENDING: THE CURSE CONTINUES
+================================================================================
+
+When you take the treasure in the Cavern of Jewels:
+
+You reach for the treasure...
+
+A shimmering glow appears, hanging in the centre of the cavern.
+'At last', the words are exclaimed in your mind.
+'You have solved the mysteries of my treasure.'
+
+From henceforth you shall guard the treasure, protecting it from fortune 
+hunters around the world.
+
+A cackling laugh echoes in your mind, as the glow fades into the shadows...
+
+***** To be continued *****
+
+THE CYCLE CONTINUES: You have become the new guardian of the treasure, 
+replacing William's ghost. Your spirit will now haunt these halls forever...
+
+========================================
+    CONGRATULATIONS!
+  You have completed SKULLDUGGERY!
+========================================
+
+STORY SIGNIFICANCE:
+You have become what you sought to defeat. William's curse transfers to you, 
+and you are now bound to guard the treasure for eternity. The cycle of the 
+haunting continues with a new ghost - yours. Every treasure hunter who 
+succeeds becomes the next guardian.
+
+================================================================================
+COMPLETE SOLUTION (11 Commands)
+================================================================================
+
+1.  up              - Exit tunnel to forest
+2.  southeast       - Forest to dirt road
+3.  southwest       - Road to estate entrance
+4.  east            - Enter guard shack
+5.  take lamp       - Get the lamp
+6.  south           - Go to mansion front
+7.  north           - Enter mansion
+8.  down            - Descend to cellar
+9.  north           - Enter laboratory
+10. take potion     - Get magic potion (REQUIRED)
+11. down            - Descend to treasure vault
+12. take treasure   - WIN THE GAME
+
+================================================================================
+END OF OPTION 1 EXTRACTION
+================================================================================
+
+NOTES:
+- This represents approximately 10% of the full original game content
+- The original DOS game has 100+ locations, 200+ items, and 300+ messages
+- This content is fully playable in the current Windows port
+- Additional content is stored in SKULL.T/MM/MO files (see Options 2 & 3)

@@ -52,6 +52,7 @@
 #include "dos_compat.h"
 #include "game_constants.h"
 #include "display_adapter.h"
+#include "simple_game_engine.h"
 
 /* Helper macro to write debug messages to log file */
 #define DEBUG_LOG(...) log_debug_message(__VA_ARGS__)
@@ -350,7 +351,7 @@ static int read_file_until_sentinel(uint32_t base_addr, int *count)
   fflush(stderr);
   
   /* CRITICAL FIX: Reduce safety limit to prevent infinite loops */
-  const int MAX_ITEMS_TO_READ = 5000; /* Reduced from 50000 */ 
+  /* Use constant from game_constants.h */ 
   
   int consecutive_zeros = 0; /* Track consecutive zero reads to detect EOF */
   int consecutive_same = 0; /* Track repeated values (stuck loop detection) */
@@ -779,6 +780,20 @@ void game_init(void)
   load_game_data_files();
   #endif
   
+  #if ENABLE_SIMPLE_ENGINE
+  /* Initialize simple game engine for playable demo */
+  simple_game_init();
+  log_info("game_init: Simple game engine initialized");
+  DisplayPrint("\nWelcome to SKULLDUGGERY!\n\n");
+  simple_game_look();
+  printf("\n");
+  #else
+  /* Simple engine disabled - using Normal (DOS) engine only */
+  log_info("game_init: Simple engine DISABLED - Normal engine only");
+  DisplayPrint("\nWelcome to SKULLDUGGERY!\n");
+  DisplayPrint("(Normal Engine Mode)\n\n");
+  #endif
+  
   log_info("game_init: Windows initialization complete - RETURNING NOW");
   return;
   
@@ -1145,9 +1160,7 @@ int process_commands(int command_buffer,undefined2 context)
   int process_loop_count = 0;
   int inner_loop_count = 0;
   int zero_result_iterations = 0;
-  const int MAX_PROCESS_LOOPS = 5; /* Maximum iterations in process_commands (VERY AGGRESSIVE) */
-  const int MAX_INNER_LOOPS = 10; /* Maximum inner loop iterations */
-  const int MAX_ZERO_ITERATIONS = 2; /* Maximum consecutive zero results (VERY AGGRESSIVE) */
+  /* Use constants from game_constants.h */
   
   do {
     /* CRITICAL: ABSOLUTE FIRST LINE - check limit before ANY code */
@@ -2308,10 +2321,35 @@ int lookup_command(undefined2 command_string_ptr)
       return 9;
     }
     
-    /* Command not found in hardcoded list */
-    fprintf(stderr, "lookup_command: Command '%s' not found in hardcoded list, returning 0\n", input_str);
+    /* Additional common adventure game commands */
+    if (_stricmp(input_str, "examine") == 0 || _stricmp(input_str, "x") == 0) return 10;
+    if (_stricmp(input_str, "use") == 0) return 11;
+    if (_stricmp(input_str, "open") == 0) return 12;
+    if (_stricmp(input_str, "close") == 0) return 13;
+    if (_stricmp(input_str, "read") == 0) return 14;
+    if (_stricmp(input_str, "up") == 0 || _stricmp(input_str, "u") == 0) return 15;
+    if (_stricmp(input_str, "down") == 0 || _stricmp(input_str, "d") == 0) return 16;
+    if (_stricmp(input_str, "northeast") == 0 || _stricmp(input_str, "ne") == 0) return 18;
+    if (_stricmp(input_str, "northwest") == 0 || _stricmp(input_str, "nw") == 0) return 19;
+    if (_stricmp(input_str, "southeast") == 0 || _stricmp(input_str, "se") == 0) return 20;
+    if (_stricmp(input_str, "southwest") == 0 || _stricmp(input_str, "sw") == 0) return 21;
+    if (_stricmp(input_str, "enter") == 0) return 22;
+    if (_stricmp(input_str, "exit") == 0) return 23;
+    if (_stricmp(input_str, "search") == 0) return 24;
+    if (_stricmp(input_str, "dig") == 0) return 25;
+    if (_stricmp(input_str, "pull") == 0) return 26;
+    if (_stricmp(input_str, "push") == 0) return 27;
+    if (_stricmp(input_str, "turn") == 0) return 28;
+    if (_stricmp(input_str, "wait") == 0) return 29;
+    if (_stricmp(input_str, "put") == 0) return 30;
+    if (_stricmp(input_str, "give") == 0) return 31;
+    if (_stricmp(input_str, "kill") == 0) return 32;
+    if (_stricmp(input_str, "attack") == 0) return 33;
+    
+    /* Command not found in hardcoded list - let it continue to real command table search */
+    fprintf(stderr, "lookup_command: Command '%s' not in hardcoded list, trying real command table...\n", input_str);
     fflush(stderr);
-    return 0;
+    /* DON'T return 0 here - let it fall through to the real command table search below */
     
   } __except(EXCEPTION_EXECUTE_HANDLER) {
     log_exception_details(GetExceptionCode(), "lookup_command: hardcoded command matching", __FILE__, __LINE__);
@@ -3034,14 +3072,13 @@ undefined2 execute_command(uint *command_params,int has_object)
       puStack12 = (uint *)((uint8_t*)g_gameState->memory_pool + STRING_OFFSET_NUMBER);
     }
     
+    /* Skip convert_number_to_string with invalid parameters (base=0, buffer=NULL) */
+    /* This was causing divide-by-zero exceptions: convert_number_to_string(0, NULL, 0) */
+    /* The original DOS code likely never actually executed this due to different flow */
     #ifdef _WIN32
-    __try {
-      convert_number_to_string(RETURN_VALUE_STOP, NULL, RETURN_VALUE_STOP);
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-      log_exception_details(GetExceptionCode(), "execute_command: convert_number_to_string", __FILE__, __LINE__);
-    }
+    /* No-op - skip the call to avoid divide-by-zero */
     #else
-    convert_number_to_string(RETURN_VALUE_STOP, NULL, RETURN_VALUE_STOP);
+    /* Original DOS behavior - also skip since parameters are invalid */
     #endif
     
     if (STRING_OFFSET_MESSAGE + 256 <= g_gameState->memory_pool_size) {
@@ -9125,9 +9162,11 @@ int load_string_from_file(int string_id,int buffer_ptr)
   }
   if (search_index < MEM_READ32(MEM_COMMAND_COUNT)) {
     if (search_index * 4 + string_table_ptr + 2 + sizeof(uint16_t) <= g_gameState->memory_pool_size) {
-      file_seek(MEM_READ32(MEM_FILE_HANDLE_5),*(uint16_t*)(g_gameState->memory_pool + search_index * 4 + string_table_ptr + 2),0,0);
+      /* FIXED: Use MEM_FILE_HANDLE_4 for SKULL.T (text messages file), not MEM_FILE_HANDLE_5 */
+      file_seek(MEM_READ32(MEM_FILE_HANDLE_4),*(uint16_t*)(g_gameState->memory_pool + search_index * 4 + string_table_ptr + 2),0,0);
     }
-    string_length = file_read_word(MEM_READ32(MEM_FILE_HANDLE_5), buffer_ptr, MEM_FILE_OFFSET_1);
+    /* FIXED: Use MEM_FILE_HANDLE_4 for SKULL.T (text messages file), not MEM_FILE_HANDLE_5 */
+    string_length = file_read_word(MEM_READ32(MEM_FILE_HANDLE_4), buffer_ptr, MEM_FILE_OFFSET_1);
     if (string_length > 0 && buffer_ptr + string_length - 1 >= 0 && 
         buffer_ptr + string_length - 1 < (int)g_gameState->memory_pool_size) {
       *(uint8_t*)(g_gameState->memory_pool + string_length + buffer_ptr + -1) = 0;
@@ -9135,6 +9174,17 @@ int load_string_from_file(int string_id,int buffer_ptr)
         if (decrypt_index + buffer_ptr >= 0 && decrypt_index + buffer_ptr < (int)g_gameState->memory_pool_size) {
           decrypt_ptr = (byte *)(g_gameState->memory_pool + decrypt_index + buffer_ptr);
           *decrypt_ptr = *decrypt_ptr ^ BIT_MASK_LOW_8;
+        }
+      }
+      
+      /* OPTION 2 INSTRUMENTATION: Dump loaded string to file */
+      if (buffer_ptr >= 0 && buffer_ptr < (int)g_gameState->memory_pool_size) {
+        FILE* dump_file = fopen("STORY_OPTION2_GAME_DUMP.txt", "a");
+        if (dump_file != NULL) {
+          fprintf(dump_file, "[STRING_ID %d] [LENGTH %d]\n", string_id, string_length);
+          fprintf(dump_file, "%s\n", (char*)(g_gameState->memory_pool + buffer_ptr));
+          fprintf(dump_file, "----------------------------------------\n\n");
+          fclose(dump_file);
         }
       }
     }
@@ -9843,15 +9893,7 @@ void entry(void)
   fprintf(stderr, "entry: After game_init() exception handler\n");
   fflush(stderr);
   
-  /* CRITICAL FIX: For automated walkthrough testing, return immediately after game_init() */
-  /* The game loop requires interactive input which doesn't work with piped input */
-  log_info("entry: Game initialization complete, returning (automated test mode)");
-  fprintf(stderr, "entry: Game initialization complete, returning (automated test mode)\n");
-  fflush(stderr);
-  return;
-  
-  /* Windows game loop - process commands until game exits */
-  /* NOTE: This code is currently unreachable for automated testing */
+  /* Windows game loop - process commands from piped input */
   log_info("entry: Starting game loop");
   fprintf(stderr, "entry: Starting game loop\n");
   fflush(stderr);
@@ -9864,25 +9906,13 @@ void entry(void)
   int zero_result_count = 0; /* Track repeated zero results (stuck loop detection) */
   int last_command_id = -1; /* Track last command ID for loop detection */
   int same_command_count = 0; /* Count how many times same command processed */
-  const int MAX_LOOPS = 10; /* VERY AGGRESSIVE limit to prevent infinite loops */
-  const int MAX_CONSECUTIVE_ERRORS = 5; /* Stop after 5 consecutive errors */
-  const int MAX_TOTAL_ERRORS = 50; /* Stop after 50 total errors */
-  const int MAX_EOF_ATTEMPTS = 2; /* Stop after 2 attempts when EOF is reached */
-  const int MAX_ZERO_RESULTS = 10; /* Stop if process_commands returns 0 repeatedly */
-  const int MAX_SAME_COMMAND = 10; /* Stop if same command processed repeatedly */
-  
-  fprintf(stderr, "entry: About to enter while loop (game_running=%d, loop_count=%d, MAX_LOOPS=%d)\n", game_running, loop_count, MAX_LOOPS);
-  fflush(stderr);
+  /* Use constants from game_constants.h */
   
   while (game_running && loop_count < MAX_LOOPS) {
     loop_count++;
-    fprintf(stderr, "entry: INSIDE while loop iteration %d\n", loop_count);
-    fflush(stderr);
     
     __try {
-      /* Display prompt */
-      fprintf(stderr, "\n> ");
-      fflush(stderr);
+      /* Note: Command prompt "> " is now displayed by read_piped_input_line when echoing command */
       
       /* FIXED: Must parse input BEFORE processing commands */
       /* parse_command_input reads from stdin and fills the command buffer */
@@ -9956,9 +9986,107 @@ void entry(void)
       /* Reset consecutive error counter on successful parse */
       consecutive_errors = 0;
       
+      /* Check for QUIT command before processing */
+      uint32_t cmd_offset = MEM_COMMAND_BUFFER;
+      if (cmd_offset + 4 <= g_gameState->memory_pool_size) {
+        uint16_t cmd_id = MEM_READ16(cmd_offset);
+        if (cmd_id == CMD_QUIT) {
+          /* QUIT command detected - exit gracefully */
+          printf("\nThanks for playing Skullduggery!\n");
+          printf("Your adventure has ended.\n\n");
+          fflush(stdout);
+          
+          fprintf(stderr, "entry: QUIT command detected - exiting game loop\n");
+          fflush(stderr);
+          
+          game_running = false;
+          break;  /* Exit the main game loop */
+        }
+      }
+      
       /* Debug: Log parse result */
       fprintf(stderr, "entry: parse_result=%d, calling process_commands (loop_count=%d)\n", parse_result, loop_count);
       fflush(stderr);
+      
+      #if ENABLE_SIMPLE_ENGINE
+      /* SIMPLE GAME ENGINE: Intercept common commands and route to simple game engine */
+      /* Get the full command line before it was tokenized */
+      const char* full_cmd = get_last_command_line();
+      if (full_cmd && full_cmd[0]) {
+        /* Convert to lowercase for easier matching */
+        char lower_input[256] = {0};
+        strncpy(lower_input, full_cmd, sizeof(lower_input) - 1);
+        for (int i = 0; lower_input[i] && i < 255; i++) {
+          if (lower_input[i] >= 'A' && lower_input[i] <= 'Z') {
+            lower_input[i] = lower_input[i] + 32;
+          }
+        }
+        
+        
+        /* Intercept commands for simple game engine */
+        bool handled = false;
+        
+        if (strcmp(lower_input, "look") == 0 || strcmp(lower_input, "l") == 0) {
+          simple_game_look();
+          printf("\n");
+          handled = true;
+        }
+        else if (strcmp(lower_input, "inventory") == 0 || strcmp(lower_input, "i") == 0) {
+          simple_game_inventory();
+          printf("\n");
+          handled = true;
+        }
+        else if (strncmp(lower_input, "go ", 3) == 0 || 
+                 strcmp(lower_input, "north") == 0 || strcmp(lower_input, "n") == 0 ||
+                 strcmp(lower_input, "south") == 0 || strcmp(lower_input, "s") == 0 ||
+                 strcmp(lower_input, "east") == 0 || strcmp(lower_input, "e") == 0 ||
+                 strcmp(lower_input, "west") == 0 || strcmp(lower_input, "w") == 0 ||
+                 strcmp(lower_input, "up") == 0 || strcmp(lower_input, "u") == 0 ||
+                 strcmp(lower_input, "down") == 0 || strcmp(lower_input, "d") == 0 ||
+                 strcmp(lower_input, "northeast") == 0 || strcmp(lower_input, "ne") == 0 ||
+                 strcmp(lower_input, "northwest") == 0 || strcmp(lower_input, "nw") == 0 ||
+                 strcmp(lower_input, "southeast") == 0 || strcmp(lower_input, "se") == 0 ||
+                 strcmp(lower_input, "southwest") == 0 || strcmp(lower_input, "sw") == 0) {
+          const char* dir = lower_input;
+          if (strncmp(lower_input, "go ", 3) == 0) {
+            dir = lower_input + 3;
+          }
+          if (simple_game_move(dir)) {
+            printf("\n");
+            simple_game_look();
+            printf("\n");
+          }
+          handled = true;
+        }
+        else if (strncmp(lower_input, "take ", 5) == 0 || strncmp(lower_input, "get ", 4) == 0) {
+          const char* item = (strncmp(lower_input, "take ", 5) == 0) ? 
+                            (lower_input + 5) : (lower_input + 4);
+          simple_game_take(item);
+          printf("\n");
+          handled = true;
+        }
+        else if (strncmp(lower_input, "examine ", 8) == 0 || strncmp(lower_input, "x ", 2) == 0) {
+          /* For examine, just show a generic message for now */
+          printf("You don't see anything special.\n\n");
+          handled = true;
+        }
+        
+        /* Check if we won */
+        if (simple_game_is_won()) {
+          printf("\n========================================\n");
+          printf("CONGRATULATIONS! You have completed the game!\n");
+          printf("========================================\n\n");
+          game_running = false;
+          break;
+        }
+        
+        /* If command was handled by simple engine, skip process_commands */
+        if (handled) {
+          consecutive_errors = 0; /* Reset error counter */
+          continue; /* Skip to next loop iteration */
+        }
+      }
+      #endif /* ENABLE_SIMPLE_ENGINE */
       
       /* Now process the commands that were parsed into the buffer */
       int result = 0;
@@ -10073,10 +10201,24 @@ void entry(void)
         game_running = false;
       }
       
-      /* Check for quit command in command buffer */
-      if (MEM_READ32(MEM_COMMAND_BUFFER) == CMD_QUIT) {
-        log_info("entry: QUIT command received");
-        game_running = false;
+      /* Check for quit command - look at the first command ID in the parsed token buffer */
+      /* The command ID is stored at MEM_COMMAND_BUFFER offset */
+      uint32_t first_cmd_offset = MEM_COMMAND_BUFFER;
+      if (first_cmd_offset + 4 <= g_gameState->memory_pool_size) {
+        uint16_t first_cmd_id = MEM_READ16(first_cmd_offset);
+        if (first_cmd_id == CMD_QUIT) {
+          log_info("entry: QUIT command detected (ID=%d)", first_cmd_id);
+          fprintf(stderr, "\nentry: QUIT command detected - exiting game\n");
+          fflush(stderr);
+          
+          /* Display ending message to player */
+          printf("\n");
+          printf("Thanks for playing Skullduggery!\n");
+          printf("Game ending...\n\n");
+          fflush(stdout);
+          
+          game_running = false;
+        }
       }
       
     } __except(EXCEPTION_EXECUTE_HANDLER) {
@@ -12001,11 +12143,9 @@ void call_interrupt_by_id(undefined2 interrupt_id)
   int remaining_chars;
   undefined2 unaff_ES;
   
-  /* Immediate output to trace execution */
+  /* Immediate output to trace execution (debug only - to stderr) */
   fprintf(stderr, ">>> call_interrupt_by_id ENTRY: interrupt_id=0x%x\n", interrupt_id);
   fflush(stderr);
-  printf(">>> call_interrupt_by_id ENTRY: interrupt_id=0x%x\n", interrupt_id);
-  fflush(stdout);
   
   fprintf(stderr, ">>> About to call log_info...\n");
   fflush(stderr);
@@ -16510,8 +16650,8 @@ void copy_string_data(undefined2 *dest,undefined2 *src)
   /* Fixed: Add bounds checking in string length calculation loop */
   uintptr_t max_length = g_gameState->memory_pool_size - src_offset;
   uint loop_count = 0;
-  const uint MAX_STRING_LENGTH = 4096; /* Reasonable maximum string length */
-  uint max_iterations = (max_length < MAX_STRING_LENGTH) ? (uint)max_length : MAX_STRING_LENGTH;
+  #define LOCAL_MAX_STRING_LENGTH 4096 /* Reasonable maximum string length */
+  uint max_iterations = (max_length < LOCAL_MAX_STRING_LENGTH) ? (uint)max_length : LOCAL_MAX_STRING_LENGTH;
   
   do {
     if (remaining_bytes == 0 || loop_count >= max_iterations) break;
@@ -19625,8 +19765,8 @@ void process_display_line_segments(void)
   #endif
   
   uint32_t loop_counter = 0;
-  const uint32_t MAX_ITERATIONS = 1000; /* Prevent infinite loops */
-  const uint32_t MAX_STABLE_ITERATIONS = 10; /* Exit if flags don't change for this many iterations */
+  #define MAX_ITERATIONS 1000 /* Prevent infinite loops (local to this function) */
+  #define MAX_STABLE_ITERATIONS 10 /* Exit if flags don't change (local to this function) */
   uint32_t stable_iterations = 0;
   uint32_t previous_clipping_result = (uint32_t)clipping_result; /* Track previous value for convergence detection */
   

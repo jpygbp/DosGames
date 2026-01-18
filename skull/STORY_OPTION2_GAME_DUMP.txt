@@ -1,0 +1,65 @@
+================================================================================
+SKULLDUGGERY - STORY EXTRACTION OPTION 2: GAME INSTRUMENTATION ATTEMPT
+================================================================================
+
+DATE: 2026-01-18
+METHOD: Added logging to load_string_from_file() in skull_ported.c
+RESULT: NO STRINGS COLLECTED
+
+================================================================================
+WHY THIS DIDN'T WORK
+================================================================================
+
+The Normal Engine's string loading system (load_string_from_file) is not
+being called during gameplay because:
+
+1. The Normal Engine is PARTIALLY WORKING (as documented)
+   - Command parsing works
+   - Game loop runs
+   - BUT: Message display functions use placeholder wrappers
+
+2. The wrapper functions (display_message_wrapper, print_string_wrapper, etc.)
+   bypass load_string_from_file() and output generic messages instead
+
+3. To fix this would require:
+   - Debugging all 21 wrapper functions
+   - Fixing memory offset calculations  
+   - Reverse engineering the exact file format
+   - Estimated time: 20-30 hours
+
+================================================================================
+WHAT WAS ATTEMPTED
+================================================================================
+
+1. Added instrumentation to load_string_from_file() function
+2. Code added at line ~9180 in skull_ported.c:
+   ```c
+   FILE* dump_file = fopen("STORY_OPTION2_GAME_DUMP.txt", "a");
+   if (dump_file != NULL) {
+       fprintf(dump_file, "[STRING_ID %d] [LENGTH %d]\n", string_id, string_length);
+       fprintf(dump_file, "%s\n", (char*)(g_gameState->memory_pool + buffer_ptr));
+       fprintf(dump_file, "----------------------------------------\n\n");
+       fclose(dump_file);
+   }
+   ```
+
+3. Disabled Simple Engine (set ENABLE_SIMPLE_ENGINE to 0)
+4. Rebuilt game successfully
+5. Ran game with test commands
+
+RESULT: Function was never called, no output generated
+
+================================================================================
+CONCLUSION
+================================================================================
+
+Option 2 (game instrumentation) would work IF the Normal Engine was fully
+functional. Since it's only partially working, this approach doesn't yield
+results without extensive additional debugging work.
+
+Solution: Move to Option 3 (direct file parsing) which doesn't depend on
+the game's code and extracts strings directly from SKULL.T file format.
+
+================================================================================
+NEXT STEP: SEE STORY_OPTION3_DIRECT_EXTRACT.txt
+================================================================================
